@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "mi-menu-komin"
+  },
+  "targets": {
+    "mi-menu-komin": {
+      "hosting": {
+        "main": [
+          "mi-menu-komin"
+        ],
+        "heladeria": [
+          "heladeria-pistacho"
+        ]
+      }
+    }
+  }
+}

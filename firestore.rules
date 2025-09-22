@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function restaurantDoc(restaurantId) {
+      return get(/databases/$(database)/documents/restaurants/$(restaurantId));
+    }
+
+    function isRestaurantPublic(restaurantId) {
+      return restaurantDoc(restaurantId).data.isPublic == true;
+    }
+
+    function isOwnerOfRestaurant(restaurantId) {
+      return isSignedIn() && (request.auth.uid in restaurantDoc(restaurantId).data.owners);
+    }
+
+    // restaurants
+    match /restaurants/{restaurantId} {
+      // Use resource.data so queries evaluate per-doc without extra get()
+      allow read: if resource.data.isPublic == true || (isSignedIn() && (request.auth.uid in resource.data.owners));
+      // Allow create if the creator includes themself as owner
+      allow create: if isSignedIn()
+        && request.resource.data.owners != null
+        && (request.auth.uid in request.resource.data.owners)
+        && request.resource.data.keys().hasOnly(['name','slug','isPublic','owners','phone','address','website','hours','createdAt','updatedAt']);
+      allow update, delete: if isOwnerOfRestaurant(restaurantId);
+    }
+
+    // menus: require a restaurantId field
+    match /menus/{menuId} {
+      allow read: if isRestaurantPublic(resource.data.restaurantId) || isOwnerOfRestaurant(resource.data.restaurantId);
+      allow create: if isOwnerOfRestaurant(request.resource.data.restaurantId);
+      allow update, delete: if isOwnerOfRestaurant(resource.data.restaurantId);
+    }
+
+    // categories: link to menu via menuId
+    match /categories/{categoryId} {
+      function menuDoc(menuId) { return get(/databases/$(database)/documents/menus/$(menuId)); }
+      function catRestaurantIdFromExisting() { return menuDoc(resource.data.menuId).data.restaurantId; }
+      function catRestaurantIdFromNew() { return menuDoc(request.resource.data.menuId).data.restaurantId; }
+
+      allow read: if isRestaurantPublic(catRestaurantIdFromExisting()) || isOwnerOfRestaurant(catRestaurantIdFromExisting());
+      allow create: if isOwnerOfRestaurant(catRestaurantIdFromNew());
+      allow update, delete: if isOwnerOfRestaurant(catRestaurantIdFromExisting());
+    }
+
+    // items: link to category via categoryId -> menu -> restaurant
+    match /items/{itemId} {
+      function categoryDoc(categoryId) { return get(/databases/$(database)/documents/categories/$(categoryId)); }
+      function menuDoc(menuId) { return get(/databases/$(database)/documents/menus/$(menuId)); }
+      function itemRestaurantIdFromExisting() { return menuDoc(categoryDoc(resource.data.categoryId).data.menuId).data.restaurantId; }
+      function itemRestaurantIdFromNew() { return menuDoc(categoryDoc(request.resource.data.categoryId).data.menuId).data.restaurantId; }
+
+      allow read: if isRestaurantPublic(itemRestaurantIdFromExisting()) || isOwnerOfRestaurant(itemRestaurantIdFromExisting());
+      allow create: if isOwnerOfRestaurant(itemRestaurantIdFromNew());
+      allow update, delete: if isOwnerOfRestaurant(itemRestaurantIdFromExisting());
+    }
+  }
+}
