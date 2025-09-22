@@ -1,5 +1,11 @@
-import { useEffect } from 'react'
-import * as eva from 'eva-icons'
+import React, { useEffect } from 'react'
+import { 
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  XCircleIcon,
+  InformationCircleIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline'
 
 /**
  * Reusable Dialog component for the platform
@@ -42,10 +48,8 @@ export default function Dialog({
   secondaryButton,
   size = 'md'
 }) {
-  // Initialize Eva Icons when component mounts
-  useEffect(() => {
-    eva.replace()
-  }, [])
+  // No need for icon initialization with Heroicons
+  useEffect(() => {}, [isOpen])
 
   // Handle escape key
   useEffect(() => {
@@ -72,25 +76,25 @@ export default function Dialog({
     switch (icon) {
       case 'success':
         return {
-          name: 'checkmark-circle-2',
+          component: CheckCircleIcon,
           color: 'text-green-500',
           bgColor: 'bg-green-100'
         }
       case 'error':
         return {
-          name: 'close-circle',
+          component: XCircleIcon,
           color: 'text-red-500',
           bgColor: 'bg-red-100'
         }
       case 'warning':
         return {
-          name: 'alert-triangle',
+          component: ExclamationTriangleIcon,
           color: 'text-yellow-500',
           bgColor: 'bg-yellow-100'
         }
       case 'info':
         return {
-          name: 'info',
+          component: InformationCircleIcon,
           color: 'text-blue-500',
           bgColor: 'bg-blue-100'
         }
@@ -144,11 +148,9 @@ export default function Dialog({
               {/* Icon */}
               {iconConfig && (
                 <div className={`flex-shrink-0 mx-auto flex items-center justify-center h-12 w-12 rounded-full ${iconConfig.bgColor} mb-4 sm:mx-0 sm:h-10 sm:w-10 sm:mb-0 sm:mr-4`}>
-                  <i 
-                    data-eva={iconConfig.name}
-                    data-eva-fill={iconConfig.color.replace('text-', '')}
-                    className={`w-6 h-6 ${iconConfig.color}`}
-                  />
+                  {React.createElement(iconConfig.component, {
+                    className: `w-6 h-6 ${iconConfig.color}`
+                  })}
                 </div>
               )}
               
@@ -170,7 +172,7 @@ export default function Dialog({
                   onClick={onClose}
                   className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  <i data-eva="close" className="w-5 h-5" />
+                  <XMarkIcon className="w-5 h-5" />
                 </button>
               )}
             </div>

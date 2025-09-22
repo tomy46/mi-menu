@@ -292,7 +292,7 @@ export default function Settings() {
           
           <div className="space-y-2 text-sm text-gray-600">
             <p>• Creá categorías para organizar tu menú</p>
-            <p>• Agregá ítems con precios y descripciones</p>
+            <p>• Agregá productos con precios y descripciones</p>
             <p>• Compartí el link público con tus clientes</p>
           </div>
         </div>

@@ -1,7 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext.jsx'
-import * as eva from 'eva-icons'
+import { 
+  XMarkIcon,
+  Squares2X2Icon,
+  CubeIcon,
+  Cog6ToothIcon,
+  EyeIcon,
+  Bars3Icon,
+  BuildingStorefrontIcon,
+  ArrowRightOnRectangleIcon
+} from '@heroicons/react/24/outline'
 import { getOwnedRestaurants } from '../../services/firestore.js'
 
 export default function AdminLayout() {
@@ -13,15 +22,7 @@ export default function AdminLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const accountRef = useRef(null)
 
-  // Initialize Eva Icons
-  useEffect(() => {
-    eva.replace()
-  }, [])
-
-  // Re-run icon replacement when menus or dynamic lists change
-  useEffect(() => {
-    eva.replace()
-  }, [menuOpen, restaurants, sidebarOpen])
+  // No need for icon initialization with Heroicons
 
   // Load restaurants owned by the user
   useEffect(() => {
@@ -58,12 +59,13 @@ export default function AdminLayout() {
     navigate('/auth/login')
   }
 
+
   const base = `/admin/${restaurantId}`
 
   const navItems = [
-    { to: `${base}`, label: 'Categorías', icon: 'grid-outline' },
-    { to: `${base}/items`, label: 'Ítems', icon: 'cube-outline' },
-    { to: `${base}/settings`, label: 'Settings', icon: 'settings-outline' },
+    { to: `${base}`, label: 'Categorías', icon: Squares2X2Icon },
+    { to: `${base}/items`, label: 'Ítems', icon: CubeIcon },
+    { to: `${base}/settings`, label: 'Settings', icon: Cog6ToothIcon },
   ]
 
   function onRestaurantChange(id) {
@@ -92,12 +94,12 @@ export default function AdminLayout() {
           {/* Header */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h1 className="text-lg font-semibold text-gray-900">Panel Admin</h1>
+              <h1 className="text-lg font-semibold text-gray-900">Mi Menú</h1>
               <button 
                 onClick={() => setSidebarOpen(false)}
                 className="lg:hidden p-1 rounded-md hover:bg-gray-100"
               >
-                <i data-eva="close-outline" className="w-5 h-5"></i>
+                <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -119,7 +121,7 @@ export default function AdminLayout() {
                       }`
                     }
                   >
-                    <i data-eva={item.icon} className="w-5 h-5"></i>
+                    <item.icon className="w-5 h-5" />
                     {item.label}
                   </NavLink>
                 </li>
@@ -128,44 +130,44 @@ export default function AdminLayout() {
           </nav>
 
           {/* Footer actions */}
-          <div className="p-4 border-t border-gray-200 space-y-2">
+          <div className="p-4 border-t border-gray-200">
             <Link 
               to={`/r/${restaurantId}`}
               className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <i data-eva="eye-outline" className="w-5 h-5"></i>
+              <EyeIcon className="w-5 h-5" />
               Ver menú público
             </Link>
-            <button 
-              onClick={onLogout}
-              className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors w-full text-left"
-            >
-              <i data-eva="log-out-outline" className="w-5 h-5"></i>
-              Cerrar sesión
-            </button>
           </div>
         </div>
       </aside>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile header */}
-        <header className="lg:hidden bg-white border-b border-gray-200 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-md hover:bg-gray-100"
-            >
-              <i data-eva="menu-outline" className="w-5 h-5"></i>
-            </button>
-            <h1 className="text-lg font-semibold text-gray-900">Panel Admin</h1>
-            <div className="w-8" /> {/* Spacer */}
-          </div>
-        </header>
-
         {/* AppBar */}
         <div className="bg-white border-b border-gray-200 px-4 py-3">
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex items-center justify-between gap-3">
+            {/* Mobile hamburger menu */}
+            <div className="flex items-center gap-3 lg:hidden">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 rounded-md hover:bg-gray-100"
+              >
+                <Bars3Icon className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2">
+                <BuildingStorefrontIcon className="w-5 h-5 text-gray-600" />
+                <h1 className="text-lg font-semibold text-gray-900">
+                  {currentRestaurant?.name || 'Mi Menú'}
+                </h1>
+              </div>
+            </div>
+            
+            {/* Desktop spacer */}
+            <div className="hidden lg:block flex-1" />
+            
+            {/* Right side controls */}
+            <div className="flex items-center gap-3">
             {/* Restaurant selector */}
             <select
               value={restaurantId || ''}
@@ -184,33 +186,50 @@ export default function AdminLayout() {
               ))}
             </select>
 
-            {/* Account menu */}
+            {/* Restaurant Avatar with Context Menu */}
             <div className="relative" ref={accountRef}>
               <button
                 onClick={() => setMenuOpen((v) => !v)}
-                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                className="w-9 h-9 rounded-full bg-[#111827] flex items-center justify-center hover:bg-gray-800 transition-colors"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
               >
-                {currentRestaurant?.name ? (
-                  <span className="text-sm font-semibold text-gray-700">
-                    {currentRestaurant.name.charAt(0).toUpperCase()}
-                  </span>
+                {currentRestaurant?.imageUrl ? (
+                  <img 
+                    src={currentRestaurant.imageUrl} 
+                    alt={currentRestaurant.name}
+                    className="w-9 h-9 rounded-full object-cover"
+                  />
                 ) : (
-                  <i data-eva="home-outline" className="w-5 h-5"></i>
+                  <span className="text-sm font-semibold text-white">
+                    {currentRestaurant?.name ? 
+                      currentRestaurant.name.charAt(0).toUpperCase() : 
+                      'R'
+                    }
+                  </span>
                 )}
               </button>
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-md py-1 z-50">
+                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-md py-1 z-50">
+                  <div className="px-3 py-2 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">
+                      {currentRestaurant?.name || 'Restaurante'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {user?.email}
+                    </p>
+                  </div>
                   <button
                     onClick={onLogout}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
                   >
-                    <i data-eva="log-out-outline" className="w-4 h-4"></i>
+                    <ArrowRightOnRectangleIcon className="w-4 h-4" />
                     Cerrar sesión
                   </button>
                 </div>
               )}
+            </div>
+
             </div>
           </div>
         </div>

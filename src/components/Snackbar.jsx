@@ -1,5 +1,11 @@
-import { useEffect, useState } from 'react'
-import * as eva from 'eva-icons'
+import React, { useEffect, useState } from 'react'
+import { 
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  XCircleIcon,
+  InformationCircleIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline'
 
 /**
  * Snackbar component for showing temporary notifications
@@ -24,10 +30,8 @@ export default function Snackbar({
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
 
-  // Initialize Eva Icons when component mounts
-  useEffect(() => {
-    eva.replace()
-  }, [])
+  // No need for icon initialization with Heroicons
+  useEffect(() => {}, [isVisible])
 
   // Handle auto-hide timer
   useEffect(() => {
@@ -64,21 +68,21 @@ export default function Snackbar({
     switch (type) {
       case 'success':
         return {
-          icon: 'checkmark-circle-2',
+          component: CheckCircleIcon,
           bgColor: 'bg-green-600',
           textColor: 'text-white',
           iconColor: 'text-white'
         }
       case 'error':
         return {
-          icon: 'close-circle',
+          component: XCircleIcon,
           bgColor: 'bg-red-600',
           textColor: 'text-white',
           iconColor: 'text-white'
         }
       case 'warning':
         return {
-          icon: 'alert-triangle',
+          component: ExclamationTriangleIcon,
           bgColor: 'bg-yellow-600',
           textColor: 'text-white',
           iconColor: 'text-white'
@@ -86,7 +90,7 @@ export default function Snackbar({
       case 'info':
       default:
         return {
-          icon: 'info',
+          component: InformationCircleIcon,
           bgColor: 'bg-blue-600',
           textColor: 'text-white',
           iconColor: 'text-white'
@@ -119,10 +123,9 @@ export default function Snackbar({
         <div className={`${typeConfig.bgColor} ${typeConfig.textColor} rounded-lg shadow-lg p-4 flex items-center gap-3`}>
           {/* Icon */}
           <div className="flex-shrink-0">
-            <i 
-              data-eva={typeConfig.icon}
-              className={`w-5 h-5 ${typeConfig.iconColor}`}
-            />
+            {React.createElement(typeConfig.component, {
+              className: `w-5 h-5 ${typeConfig.iconColor}`
+            })}
           </div>
           
           {/* Message */}
@@ -145,7 +148,7 @@ export default function Snackbar({
             onClick={handleClose}
             className={`flex-shrink-0 ${typeConfig.iconColor} hover:opacity-70 transition-opacity`}
           >
-            <i data-eva="close" className="w-4 h-4" />
+            <XMarkIcon className="w-4 h-4" />
           </button>
         </div>
       </div>
