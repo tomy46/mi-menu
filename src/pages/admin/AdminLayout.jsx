@@ -168,68 +168,67 @@ export default function AdminLayout() {
             
             {/* Right side controls */}
             <div className="flex items-center gap-3">
-            {/* Restaurant selector */}
-            <select
-              value={restaurantId || ''}
-              onChange={(e) => onRestaurantChange(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent bg-white"
-            >
-              {restaurants.length === 0 && (
-                <option value="" disabled>
-                  Cargando restaurantes...
-                </option>
-              )}
-              {restaurants.length > 0 && restaurants.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-
-            {/* Restaurant Avatar with Context Menu */}
-            <div className="relative" ref={accountRef}>
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                className="w-9 h-9 rounded-full bg-[#111827] flex items-center justify-center hover:bg-gray-800 transition-colors"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
+              {/* Restaurant selector */}
+              <select
+                value={restaurantId || ''}
+                onChange={(e) => onRestaurantChange(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent bg-white"
               >
-                {currentRestaurant?.imageUrl ? (
-                  <img 
-                    src={currentRestaurant.imageUrl} 
-                    alt={currentRestaurant.name}
-                    className="w-9 h-9 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="text-sm font-semibold text-white">
-                    {currentRestaurant?.name ? 
-                      currentRestaurant.name.charAt(0).toUpperCase() : 
-                      'R'
-                    }
-                  </span>
+                {restaurants.length === 0 && (
+                  <option value="" disabled>
+                    Cargando restaurantes...
+                  </option>
                 )}
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-md py-1 z-50">
-                  <div className="px-3 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">
-                      {currentRestaurant?.name || 'Restaurante'}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {user?.email}
-                    </p>
-                  </div>
-                  <button
-                    onClick={onLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                    Cerrar sesión
-                  </button>
-                </div>
-              )}
-            </div>
+                {restaurants.length > 0 && restaurants.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
 
+              {/* Restaurant Avatar with Context Menu */}
+              <div className="relative" ref={accountRef}>
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="w-9 h-9 rounded-full bg-[#111827] flex items-center justify-center hover:bg-gray-800 transition-colors"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                >
+                  {currentRestaurant?.imageUrl ? (
+                    <img 
+                      src={currentRestaurant.imageUrl} 
+                      alt={currentRestaurant.name}
+                      className="w-9 h-9 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm font-semibold text-white">
+                      {currentRestaurant?.name ? 
+                        currentRestaurant.name.charAt(0).toUpperCase() : 
+                        'R'
+                      }
+                    </span>
+                  )}
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-md py-1 z-50">
+                    <div className="px-3 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">
+                        {currentRestaurant?.name || 'Restaurante'}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {user?.email}
+                      </p>
+                    </div>
+                    <button
+                      onClick={onLogout}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                      Cerrar sesión
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

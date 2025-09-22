@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { getRestaurant, updateRestaurant } from '../../services/firestore.js'
 import Snackbar from '../../components/Snackbar.jsx'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
+import { MENU_THEMES, DEFAULT_THEME } from '../../config/themes.js'
 
 export default function Settings() {
   const { restaurantId } = useParams()
@@ -16,7 +17,13 @@ export default function Settings() {
     phone: '',
     address: '',
     website: '',
-    hours: ''
+    hours: '',
+    theme: DEFAULT_THEME,
+    socialMedia: [
+      { title: '', url: '' },
+      { title: '', url: '' },
+      { title: '', url: '' }
+    ]
   })
   
   // Snackbar hook
@@ -55,7 +62,13 @@ export default function Settings() {
             phone: r.phone || '',
             address: r.address || '',
             website: r.website || '',
-            hours: r.hours || ''
+            hours: r.hours || '',
+            theme: r.theme || DEFAULT_THEME,
+            socialMedia: r.socialMedia || [
+              { title: '', url: '' },
+              { title: '', url: '' },
+              { title: '', url: '' }
+            ]
           })
         }
       } catch (error) {
@@ -90,6 +103,15 @@ export default function Settings() {
     } catch (err) {
       showError('No se pudo copiar el enlace al portapapeles')
     }
+  }
+
+  function updateSocialMedia(index, field, value) {
+    setFormData(prev => ({
+      ...prev,
+      socialMedia: prev.socialMedia.map((social, i) => 
+        i === index ? { ...social, [field]: value } : social
+      )
+    }))
   }
 
   if (loading) {
@@ -178,6 +200,56 @@ export default function Settings() {
               {saving ? 'Guardando...' : 'Guardar información'}
             </button>
           </div>
+        </div>
+
+        {/* Social Media */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <span className="text-xl">📱</span>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Redes sociales</h3>
+              <p className="text-sm text-gray-600">Enlaces a tus redes sociales</p>
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            {formData.socialMedia.map((social, index) => (
+              <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                    Nombre de la red social
+                  </label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    value={social.title}
+                    onChange={(e) => updateSocialMedia(index, 'title', e.target.value)}
+                    placeholder="Instagram, Facebook, Twitter..."
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                    URL
+                  </label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    value={social.url}
+                    onChange={(e) => updateSocialMedia(index, 'url', e.target.value)}
+                    placeholder="https://instagram.com/tu-usuario"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full mt-4 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Guardando...' : 'Guardar redes sociales'}
+          </button>
         </div>
 
         {/* URLs and Technical Info */}
@@ -278,6 +350,82 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* Theme Configuration */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+              <span className="text-xl">🎨</span>
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900">Tema del menú</h3>
+              <p className="text-sm text-gray-600">Personaliza el diseño de tu menú público</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {Object.values(MENU_THEMES).map((theme) => (
+              <div
+                key={theme.id}
+                className={`relative border-2 rounded-lg p-4 cursor-pointer transition-all ${
+                  formData.theme === theme.id
+                    ? 'border-[#111827] bg-gray-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+                onClick={() => setFormData(prev => ({ ...prev, theme: theme.id }))}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">{theme.preview}</span>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{theme.name}</h4>
+                    <p className="text-xs text-gray-600">{theme.description}</p>
+                  </div>
+                </div>
+                
+                {/* Theme preview */}
+                <div 
+                  className="h-16 rounded-md p-2 text-xs"
+                  style={{ 
+                    backgroundColor: theme.colors.background,
+                    border: `1px solid ${theme.colors.border}`
+                  }}
+                >
+                  <div 
+                    className="font-semibold mb-1"
+                    style={{ 
+                      color: theme.colors.text.primary,
+                      fontFamily: theme.fonts.primary
+                    }}
+                  >
+                    {restaurant?.name || 'Mi Restaurante'}
+                  </div>
+                  <div 
+                    className="text-xs"
+                    style={{ color: theme.colors.text.secondary }}
+                  >
+                    Categoría • Producto
+                  </div>
+                </div>
+                
+                {formData.theme === theme.id && (
+                  <div className="absolute top-2 right-2">
+                    <div className="w-5 h-5 bg-[#111827] rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs">✓</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full mt-4 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Guardando...' : 'Guardar tema'}
+          </button>
+        </div>
+
         {/* Help card */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center gap-3 mb-4">
@@ -294,6 +442,7 @@ export default function Settings() {
             <p>• Creá categorías para organizar tu menú</p>
             <p>• Agregá productos con precios y descripciones</p>
             <p>• Compartí el link público con tus clientes</p>
+            <p>• Elegí un tema que represente tu restaurante</p>
           </div>
         </div>
       </div>

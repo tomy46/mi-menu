@@ -202,6 +202,12 @@ export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = tr
     address: '',
     website: '',
     hours: '',
+    theme: 'elegant', // Default theme
+    socialMedia: [
+      { title: '', url: '' },
+      { title: '', url: '' },
+      { title: '', url: '' }
+    ],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
