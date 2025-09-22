@@ -60,9 +60,9 @@ export const MENU_THEMES = {
       accent: 'Poppins' // Poppins para elementos decorativos
     },
     spacing: {
-      section: '4rem',
-      item: '2rem',
-      padding: '2rem'
+      section: '5rem',
+      item: '2.5rem',
+      padding: '2.5rem'
     },
     borderRadius: '8px',
     shadows: {

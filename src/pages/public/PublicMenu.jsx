@@ -92,14 +92,14 @@ export default function PublicMenu() {
                   fontWeight: 600
                 }}
               >
-                /
+                {isCupido ? '-' : '/'}
               </span>
               <span 
                 className="text-lg font-semibold transition-all duration-300 ease-in-out"
                 style={{ 
                   color: theme.colors.text.primary, 
                   fontFamily: theme.fonts.secondary,
-                  fontWeight: 600
+                  fontWeight: isCupido ? 500 : 600
                 }}
               >
                 {new Intl.NumberFormat('es-AR', { 
@@ -261,7 +261,7 @@ export default function PublicMenu() {
 
 
         {/* Menu Content */}
-        <main className="max-w-4xl mx-auto px-6 py-4">
+        <main className={`max-w-4xl mx-auto px-6 ${restaurant?.theme === 'cupido' ? 'py-16' : 'py-4'}`}>
           {categories.length === 0 && (
             <div className="text-center py-16">
               <span className="text-6xl mb-6 block">📋</span>
@@ -280,7 +280,7 @@ export default function PublicMenu() {
             if (categoryItems.length === 0) return null
 
             return (
-              <section key={category.id} className="mb-6">
+              <section key={category.id} className={`${restaurant?.theme === 'cupido' ? 'mb-12' : 'mb-6'}`}>
                 {/* Category Header */}
                 <div className={`mb-6 ${restaurant?.theme === 'cupido' ? 'text-center' : ''}`}>
                   <h2 
@@ -307,7 +307,7 @@ export default function PublicMenu() {
                 </div>
                 
                 {/* Items List */}
-                <div className="space-y-3">
+                <div className={`${restaurant?.theme === 'cupido' ? 'space-y-6' : 'space-y-3'}`}>
                   {categoryItems.map((item, itemIndex) => (
                     <MenuItem 
                       key={item.id} 

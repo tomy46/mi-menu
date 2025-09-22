@@ -73,8 +73,8 @@ export default function AdminLayout() {
 
   const navItems = [
     { to: `${base}`, label: 'Categorías', icon: Squares2X2Icon },
-    { to: `${base}/items`, label: 'Ítems', icon: CubeIcon },
-    { to: `${base}/settings`, label: 'Settings', icon: Cog6ToothIcon },
+    { to: `${base}/items`, label: 'Productos', icon: CubeIcon },
+    { to: `${base}/settings`, label: 'Ajustes', icon: Cog6ToothIcon },
   ]
 
   function onRestaurantChange(id) {

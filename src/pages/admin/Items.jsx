@@ -81,7 +81,7 @@ export default function Items() {
       available: !!it.available,
       order: Number(it.order) || 0,
     })
-    setEditingId(null)
+    setEditingItem(null)
     showSuccess('Producto actualizado exitosamente')
     await loadItems()
   }
@@ -112,7 +112,7 @@ export default function Items() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Ítems</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
           <p className="text-gray-600">Gestioná los productos de tu menú</p>
         </div>
       </div>
