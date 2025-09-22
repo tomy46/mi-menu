@@ -29,7 +29,7 @@ export default function Welcome() {
         <h1 className="text-xl font-semibold text-center">Bienvenido</h1>
         <p className="text-sm text-gray-600 text-center">Creá tu primer restaurante para empezar.</p>
         <input
-          className="w-full border rounded px-3 py-2"
+          className="w-full border rounded-lg px-3 py-2"
           placeholder="Nombre del restaurante"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -37,7 +37,7 @@ export default function Welcome() {
         <button
           onClick={createRestaurant}
           disabled={loading}
-          className="w-full bg-black text-white rounded py-2 disabled:opacity-50"
+          className="w-full bg-[#111827] text-white rounded-lg py-2 disabled:opacity-50"
         >
           {loading ? 'Creando...' : 'Crear restaurante'}
         </button>

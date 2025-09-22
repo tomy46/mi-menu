@@ -12,6 +12,7 @@ import {
   updateDoc,
   deleteDoc,
   limit,
+  writeBatch,
 } from 'firebase/firestore'
 
 // Collections
@@ -24,6 +25,20 @@ export const colItems = () => collection(db, 'items')
 export async function getRestaurant(id) {
   const snap = await getDoc(doc(db, 'restaurants', id))
   return snap.exists() ? { id: snap.id, ...snap.data() } : null
+}
+
+// List all restaurants owned by a user
+export async function getOwnedRestaurants(uid) {
+  try {
+    const q1 = query(colRestaurants(), where('owners', 'array-contains', uid))
+    const snaps = await getDocs(q1)
+    const list = snaps.docs.map((d) => ({ id: d.id, ...d.data() }))
+    return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  } catch (e) {
+    // Fallback to empty list on error
+    console.error('Error fetching owned restaurants:', e)
+    return []
+  }
 }
 
 export async function isOwner(restaurantId, uid) {
@@ -112,11 +127,14 @@ export async function getItemsByCategory(categoryId, { onlyAvailable = false } =
 }
 
 // CRUD (basic)
-export async function createCategory({ menuId, name, order }) {
+export async function createCategory({ menuId, name, order, description, tag, active = true }) {
   return addDoc(colCategories(), {
     menuId,
     name,
     order: Number(order) || 0,
+    description: description || '',
+    tag: tag || '',
+    active: active !== false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -128,6 +146,15 @@ export async function updateCategory(id, data) {
 
 export async function deleteCategory(id) {
   return deleteDoc(doc(db, 'categories', id))
+}
+
+export async function reorderCategories(categories) {
+  const batch = writeBatch(db)
+  categories.forEach((category, index) => {
+    const categoryRef = doc(db, 'categories', category.id)
+    batch.update(categoryRef, { order: index, updatedAt: serverTimestamp() })
+  })
+  return batch.commit()
 }
 
 export async function createItem({ categoryId, name, description, price, currency = 'ARS', available = true, order = 0 }) {

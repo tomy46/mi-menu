@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getItemsByCategory, updateItem } from '../../services/firestore.js'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
+import Snackbar from '../../components/Snackbar.jsx'
+import { useSnackbar } from '../../hooks/useSnackbar.js'
 
 export default function Items() {
   const { restaurantId } = useParams()
@@ -11,6 +14,9 @@ export default function Items() {
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ name: '', description: '', price: 0, currency: 'ARS', available: true, order: 0 })
   const [editingItem, setEditingItem] = useState(null)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, itemId: null, itemName: '' })
+  const { snackbar, showError, showSuccess } = useSnackbar()
 
   async function load() {
     setLoading(true)
@@ -43,16 +49,30 @@ export default function Items() {
 
   async function onCreate(e) {
     e.preventDefault()
-    if (!form.name.trim()) return alert('Nombre requerido')
-    if (Number(form.price) < 0) return alert('Precio inválido')
+    if (!form.name.trim()) {
+      showError('El nombre del producto es requerido')
+      return
+    }
+    if (Number(form.price) < 0) {
+      showError('El precio debe ser mayor o igual a 0')
+      return
+    }
     await createItem({ ...form, categoryId, price: Number(form.price) || 0, order: Number(form.order) || 0 })
     setForm({ name: '', description: '', price: 0, currency: 'ARS', available: true, order: 0 })
+    setShowCreateDialog(false)
+    showSuccess('Producto creado exitosamente')
     await loadItems()
   }
 
   async function onSave(it) {
-    if (!it.name.trim()) return alert('Nombre requerido')
-    if (Number(it.price) < 0) return alert('Precio inválido')
+    if (!it.name.trim()) {
+      showError('El nombre del producto es requerido')
+      return
+    }
+    if (Number(it.price) < 0) {
+      showError('El precio debe ser mayor o igual a 0')
+      return
+    }
     await updateItem(it.id, {
       name: it.name.trim(),
       description: it.description || '',
@@ -62,13 +82,25 @@ export default function Items() {
       order: Number(it.order) || 0,
     })
     setEditingId(null)
+    showSuccess('Producto actualizado exitosamente')
     await loadItems()
   }
 
-  async function onDelete(id) {
-    if (!confirm('¿Eliminar ítem?')) return
-    await deleteItem(id)
-    await loadItems()
+  function handleDeleteClick(id, name) {
+    setDeleteDialog({
+      isOpen: true,
+      itemId: id,
+      itemName: name
+    })
+  }
+
+  async function confirmDelete() {
+    if (deleteDialog.itemId) {
+      await deleteItem(deleteDialog.itemId)
+      showSuccess('Producto eliminado exitosamente')
+      await loadItems()
+    }
+    setDeleteDialog({ isOpen: false, itemId: null, itemName: '' })
   }
 
   async function onToggleAvailable(it) {
@@ -104,52 +136,19 @@ export default function Items() {
 
           {categoryId ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {/* Create new item card */}
-              <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <span className="text-xl">➕</span>
-                  </div>
-                  <h3 className="font-semibold text-gray-900">Nuevo ítem</h3>
+              {/* Create new item button */}
+              <div className="bg-white rounded-lg border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center min-h-[200px] hover:border-gray-400 transition-colors">
+                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
+                  <span className="text-2xl">➕</span>
                 </div>
-                
-                <form onSubmit={onCreate} className="space-y-3">
-                  <input
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    placeholder="Nombre del ítem"
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    required
-                  />
-                  <textarea
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
-                    placeholder="Descripción (opcional)"
-                    rows="2"
-                    value={form.description}
-                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                      type="number"
-                      step="0.01"
-                      placeholder="Precio"
-                      value={form.price}
-                      onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
-                    />
-                    <select
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                      value={form.currency}
-                      onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
-                    >
-                      <option value="ARS">ARS</option>
-                      <option value="USD">USD</option>
-                    </select>
-                  </div>
-                  <button className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors">
-                    Crear ítem
-                  </button>
-                </form>
+                <h3 className="font-semibold text-gray-900 mb-2">Agregar nuevo ítem</h3>
+                <p className="text-sm text-gray-600 text-center mb-4">Creá un nuevo producto para esta categoría</p>
+                <button
+                  onClick={() => setShowCreateDialog(true)}
+                  className="px-4 py-2 border-2 border-[#111827] text-[#111827] rounded-lg text-sm font-medium hover:bg-[#111827] hover:text-white transition-colors"
+                >
+                  Crear ítem
+                </button>
               </div>
 
               {/* Existing items */}
@@ -159,7 +158,7 @@ export default function Items() {
                   item={it} 
                   onEdit={() => setEditingItem(it)}
                   onToggleAvailable={() => onToggleAvailable(it)}
-                  onDelete={() => onDelete(it.id)}
+                  onDelete={() => handleDeleteClick(it.id, it.name)}
                 />
               ))}
 
@@ -197,11 +196,46 @@ export default function Items() {
             setEditingItem(null)
           }}
           onDelete={() => {
-            onDelete(editingItem.id)
+            handleDeleteClick(editingItem.id, editingItem.name)
             setEditingItem(null)
           }}
         />
       )}
+
+      {/* Create Item Modal */}
+      {showCreateDialog && (
+        <CreateItemModal
+          form={form}
+          setForm={setForm}
+          onClose={() => {
+            setShowCreateDialog(false)
+            setForm({ name: '', description: '', price: 0, currency: 'ARS', available: true, order: 0 })
+          }}
+          onSave={onCreate}
+        />
+      )}
+
+      {/* Dialogs */}
+      <ConfirmDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, itemId: null, itemName: '' })}
+        onConfirm={confirmDelete}
+        title="¿Eliminar producto?"
+        description={`¿Estás seguro que deseas eliminar el producto "${deleteDialog.itemName}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+      />
+
+      <Snackbar
+        isOpen={snackbar.isOpen}
+        onClose={() => {}}
+        message={snackbar.message}
+        type={snackbar.type}
+        duration={snackbar.duration}
+        position={snackbar.position}
+        action={snackbar.action}
+      />
     </div>
   )
 }
@@ -256,14 +290,20 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
   }
 
   function handleDelete() {
-    if (confirm('¿Estás seguro de que querés eliminar este ítem?')) {
-      onDelete()
-    }
+    onDelete()
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-10 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Backdrop with blur */}
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="relative z-10 bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto transform transition-all">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Editar ítem</h2>
@@ -354,7 +394,7 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
                 <button
                   onClick={() => setAvailable(!available)}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    available ? 'bg-blue-600' : 'bg-gray-200'
+                    available ? 'bg-[#111827]' : 'bg-gray-200'
                   }`}
                 >
                   <span
@@ -378,10 +418,159 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
+            className="flex-1 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
           >
             Guardar
           </button>
+        </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Create item modal component
+function CreateItemModal({ form, setForm, onClose, onSave }) {
+  function handleSubmit(e) {
+    e.preventDefault()
+    onSave(e)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      {/* Backdrop with blur */}
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className="relative z-10 bg-white rounded-lg shadow-xl max-w-md w-full transform transition-all">
+          {/* Header */}
+          <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Crear nuevo ítem</h2>
+            <button 
+              onClick={onClose}
+              className="p-1 rounded-md hover:bg-gray-100"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Content */}
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {/* General section */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">General</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Nombre*</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    value={form.name}
+                    onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Nombre del ítem"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Descripción</label>
+                  <textarea
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
+                    rows="3"
+                    value={form.description}
+                    onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="Descripción del ítem"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing section */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Precio</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Precio</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    type="number"
+                    step="0.01"
+                    value={form.price}
+                    onChange={(e) => setForm(f => ({ ...f, price: e.target.value }))}
+                    placeholder="0.00"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Moneda</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    value={form.currency}
+                    onChange={(e) => setForm(f => ({ ...f, currency: e.target.value }))}
+                  >
+                    <option value="ARS">ARS</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Configuration section */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Configuración</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-gray-600 block mb-1">Orden</label>
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                    type="number"
+                    value={form.order}
+                    onChange={(e) => setForm(f => ({ ...f, order: e.target.value }))}
+                    placeholder="0"
+                  />
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Disponibilidad</label>
+                    <p className="text-xs text-gray-500">Controla si el ítem está disponible para los clientes</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, available: !f.available }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      form.available ? 'bg-[#111827]' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        form.available ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 text-[#111827] border border-[#111827] bg-white rounded-lg py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="flex-1 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
+              >
+                Crear ítem
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

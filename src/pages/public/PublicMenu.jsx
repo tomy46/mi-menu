@@ -77,7 +77,7 @@ export default function PublicMenu() {
       <div className="bg-white border-b border-gray-200 px-4 py-4">
         <div className="max-w-md mx-auto">
           <input
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent"
             placeholder="Buscar por nombre o descripción"
             value={q}
             onChange={(e) => setQ(e.target.value)}

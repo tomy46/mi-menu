@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext.jsx'
+import Snackbar from '../../components/Snackbar.jsx'
+import { useSnackbar } from '../../hooks/useSnackbar.js'
 
 export default function Register() {
   const { register } = useAuth()
@@ -9,6 +11,7 @@ export default function Register() {
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { snackbar, showSuccess, showError } = useSnackbar()
   const navigate = useNavigate()
 
   async function onSubmit(e) {
@@ -21,8 +24,8 @@ export default function Register() {
     setLoading(true)
     try {
       await register(email, password)
-      alert('Cuenta creada. Iniciá sesión para continuar.')
-      navigate('/auth/login')
+      showSuccess('Cuenta creada exitosamente. Iniciá sesión para continuar.')
+      setTimeout(() => navigate('/auth/login'), 2000) // Wait for snackbar to show
     } catch (err) {
       setError(err.message)
     } finally {
@@ -39,7 +42,7 @@ export default function Register() {
           <input
             type="email"
             placeholder="Email"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border rounded-lg px-3 py-2"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -47,7 +50,7 @@ export default function Register() {
           <input
             type="password"
             placeholder="Contraseña"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border rounded-lg px-3 py-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -55,12 +58,12 @@ export default function Register() {
           <input
             type="password"
             placeholder="Confirmar contraseña"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border rounded-lg px-3 py-2"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
           />
-          <button disabled={loading} className="w-full bg-black text-white rounded py-2 disabled:opacity-50">
+          <button disabled={loading} className="w-full bg-[#111827] text-white rounded-lg py-2 disabled:opacity-50">
             {loading ? 'Creando...' : 'Registrarme'}
           </button>
         </form>
@@ -68,6 +71,16 @@ export default function Register() {
           <Link to="/auth/login" className="text-gray-700 underline">Ya tengo cuenta</Link>
         </div>
       </div>
+      
+      <Snackbar
+        isOpen={snackbar.isOpen}
+        onClose={() => {}}
+        message={snackbar.message}
+        type={snackbar.type}
+        duration={snackbar.duration}
+        position={snackbar.position}
+        action={snackbar.action}
+      />
     </div>
   )
 }

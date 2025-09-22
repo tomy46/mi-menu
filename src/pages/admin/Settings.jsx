@@ -1,6 +1,8 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { getRestaurant, updateRestaurant } from '../../services/firestore.js'
+import Snackbar from '../../components/Snackbar.jsx'
+import { useSnackbar } from '../../hooks/useSnackbar.js'
 
 export default function Settings() {
   const { restaurantId } = useParams()
@@ -16,6 +18,9 @@ export default function Settings() {
     website: '',
     hours: ''
   })
+  
+  // Snackbar hook
+  const { snackbar, showSuccess, showError } = useSnackbar()
   
   const publicUrl = useMemo(() => `${window.location.origin}/r/${restaurantId}`, [restaurantId])
   const subdomainUrl = useMemo(() => {
@@ -69,10 +74,10 @@ export default function Settings() {
       // Reload restaurant data to get updated slug
       const updatedRestaurant = await getRestaurant(restaurantId)
       setRestaurant(updatedRestaurant)
-      alert('Información guardada correctamente')
+      showSuccess('Información del restaurante guardada exitosamente')
     } catch (error) {
       console.error('Error saving restaurant:', error)
-      alert('Error al guardar la información')
+      showError('No se pudo guardar la información. Por favor, intenta nuevamente.')
     } finally {
       setSaving(false)
     }
@@ -81,9 +86,9 @@ export default function Settings() {
   async function copy(url) {
     try {
       await navigator.clipboard.writeText(url)
-      alert('Link copiado al portapapeles')
+      showSuccess('Enlace copiado al portapapeles')
     } catch (err) {
-      alert('No se pudo copiar el link')
+      showError('No se pudo copiar el enlace al portapapeles')
     }
   }
 
@@ -168,7 +173,7 @@ export default function Settings() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="w-full bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
             >
               {saving ? 'Guardando...' : 'Guardar información'}
             </button>
@@ -237,7 +242,7 @@ export default function Settings() {
               />
               <button 
                 onClick={() => copy(publicUrl)}
-                className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
+                className="w-full bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
               >
                 Copiar link
               </button>
@@ -292,6 +297,17 @@ export default function Settings() {
           </div>
         </div>
       </div>
+
+      {/* Snackbar */}
+      <Snackbar
+        isOpen={snackbar.isOpen}
+        onClose={() => {}}
+        message={snackbar.message}
+        type={snackbar.type}
+        duration={snackbar.duration}
+        position={snackbar.position}
+        action={snackbar.action}
+      />
     </div>
   )
 }

@@ -1,14 +1,46 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createCategory, deleteCategory, getActiveMenuByRestaurant, getCategories, updateCategory } from '../../services/firestore.js'
+import { createCategory, deleteCategory, getActiveMenuByRestaurant, getCategories, updateCategory, reorderCategories } from '../../services/firestore.js'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
+import Snackbar from '../../components/Snackbar.jsx'
+import CategoryDialog from '../../components/CategoryDialog.jsx'
+import { useSnackbar } from '../../hooks/useSnackbar.js'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 export default function Categories() {
   const { restaurantId } = useParams()
   const [menuId, setMenuId] = useState(null)
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ name: '', order: 0 })
-  const [editingId, setEditingId] = useState(null)
+  const [createDialog, setCreateDialog] = useState(false)
+  const [editDialog, setEditDialog] = useState({ isOpen: false, category: null })
+  const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, categoryId: null, categoryName: '' })
+  const { snackbar, showError, showSuccess } = useSnackbar()
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   async function load() {
     setLoading(true)
@@ -26,164 +58,265 @@ export default function Categories() {
     load()
   }, [restaurantId])
 
-  async function onCreate(e) {
-    e.preventDefault()
-    if (!form.name.trim()) return alert('Nombre requerido')
-    await createCategory({ menuId, name: form.name.trim(), order: Number(form.order) || 0 })
-    setForm({ name: '', order: 0 })
-    await load()
+  // Handle drag end
+  async function handleDragEnd(event) {
+    const { active, over } = event
+
+    if (active.id !== over?.id) {
+      const oldIndex = categories.findIndex(cat => cat.id === active.id)
+      const newIndex = categories.findIndex(cat => cat.id === over.id)
+      
+      const newCategories = arrayMove(categories, oldIndex, newIndex)
+      setCategories(newCategories)
+      
+      try {
+        await reorderCategories(newCategories)
+        showSuccess('Orden actualizado exitosamente')
+      } catch (error) {
+        showError('Error al actualizar el orden')
+        // Revert on error
+        await load()
+      }
+    }
   }
 
-  async function onSave(cat) {
-    if (!cat.name.trim()) return alert('Nombre requerido')
-    await updateCategory(cat.id, { name: cat.name.trim(), order: Number(cat.order) || 0 })
-    setEditingId(null)
-    await load()
+  // Create category
+  async function handleCreate(formData) {
+    try {
+      const nextOrder = categories.length > 0 ? Math.max(...categories.map(c => c.order || 0)) + 1 : 0
+      await createCategory({ 
+        menuId, 
+        name: formData.name,
+        description: formData.description,
+        tag: formData.tag,
+        active: formData.active,
+        order: nextOrder
+      })
+      setCreateDialog(false)
+      showSuccess('Categoría creada exitosamente')
+      await load()
+    } catch (error) {
+      showError('Error al crear la categoría')
+    }
   }
 
-  async function onDelete(id) {
-    if (!confirm('¿Eliminar categoría?')) return
-    await deleteCategory(id)
-    await load()
+  // Edit category
+  async function handleEdit(formData) {
+    try {
+      await updateCategory(editDialog.category.id, {
+        name: formData.name,
+        description: formData.description,
+        tag: formData.tag,
+        active: formData.active
+      })
+      setEditDialog({ isOpen: false, category: null })
+      showSuccess('Categoría actualizada exitosamente')
+      await load()
+    } catch (error) {
+      showError('Error al actualizar la categoría')
+    }
+  }
+
+  // Delete category
+  function handleDeleteClick(id, name) {
+    setDeleteDialog({
+      isOpen: true,
+      categoryId: id,
+      categoryName: name
+    })
+  }
+
+  async function confirmDelete() {
+    if (deleteDialog.categoryId) {
+      try {
+        await deleteCategory(deleteDialog.categoryId)
+        showSuccess('Categoría eliminada exitosamente')
+        await load()
+      } catch (error) {
+        showError('Error al eliminar la categoría')
+      }
+    }
+    setDeleteDialog({ isOpen: false, categoryId: null, categoryName: '' })
   }
 
   return (
     <div className="space-y-6">
+      {/* Header with create button */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Categorías</h1>
           <p className="text-gray-600">Organizá tu menú en categorías</p>
         </div>
+        <button
+          onClick={() => setCreateDialog(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-[#111827] text-white rounded-lg hover:bg-gray-800 transition-colors"
+        >
+          <span className="text-lg">+</span>
+          Nueva Categoría
+        </button>
       </div>
 
       {loading && <div className="text-center py-8">Cargando...</div>}
 
       {!loading && (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Create new category card */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                <span className="text-xl">➕</span>
-              </div>
-              <h3 className="font-semibold text-gray-900">Nueva categoría</h3>
-            </div>
-            
-            <form onSubmit={onCreate} className="space-y-3">
-              <input
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                placeholder="Nombre de la categoría"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                required
-              />
-              <input
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                type="number"
-                placeholder="Orden (opcional)"
-                value={form.order}
-                onChange={(e) => setForm((f) => ({ ...f, order: e.target.value }))}
-              />
-              <button className="w-full bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors">
-                Crear categoría
-              </button>
-            </form>
-          </div>
-
-          {/* Existing categories */}
-          {categories.map((c) => (
-            <div key={c.id} className="bg-white rounded-lg border border-gray-200 p-6">
-              {editingId === c.id ? (
-                <EditRow
-                  cat={c}
-                  onCancel={() => setEditingId(null)}
-                  onSave={onSave}
-                />
-              ) : (
-                <>
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <span className="text-xl">📋</span>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{c.name}</h3>
-                      <p className="text-sm text-gray-600">Orden: {c.order}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={() => setEditingId(c.id)}
-                      className="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-200 transition-colors"
-                    >
-                      Editar
-                    </button>
-                    <button 
-                      onClick={() => onDelete(c.id)}
-                      className="flex-1 bg-red-50 text-red-700 rounded-lg py-2 text-sm font-medium hover:bg-red-100 transition-colors"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-
-          {/* Empty state */}
-          {categories.length === 0 && (
-            <div className="md:col-span-2 lg:col-span-3 text-center py-12">
+        <>
+          {categories.length === 0 ? (
+            <div className="text-center py-12">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">📋</span>
               </div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay categorías</h3>
               <p className="text-gray-600">Creá tu primera categoría para organizar tu menú</p>
             </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={categories.map(c => c.id)} strategy={rectSortingStrategy}>
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                  {categories.map((category) => (
+                    <SortableCategoryCard
+                      key={category.id}
+                      category={category}
+                      onEdit={(cat) => setEditDialog({ isOpen: true, category: cat })}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           )}
-        </div>
+        </>
       )}
+
+      {/* Dialogs */}
+      <CategoryDialog
+        isOpen={createDialog}
+        onClose={() => setCreateDialog(false)}
+        onSave={handleCreate}
+        title="Nueva Categoría"
+      />
+
+      <CategoryDialog
+        isOpen={editDialog.isOpen}
+        onClose={() => setEditDialog({ isOpen: false, category: null })}
+        onSave={handleEdit}
+        onDelete={handleDeleteClick}
+        category={editDialog.category}
+        title="Editar Categoría"
+      />
+
+      <ConfirmDialog
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, categoryId: null, categoryName: '' })}
+        onConfirm={confirmDelete}
+        title="¿Eliminar categoría?"
+        description={`¿Estás seguro que deseas eliminar la categoría "${deleteDialog.categoryName}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+      />
+
+      <Snackbar
+        isOpen={snackbar.isOpen}
+        onClose={() => {}}
+        message={snackbar.message}
+        type={snackbar.type}
+        duration={snackbar.duration}
+        position={snackbar.position}
+        action={snackbar.action}
+      />
     </div>
   )
 }
 
-function EditRow({ cat, onCancel, onSave }) {
-  const [name, setName] = useState(cat.name)
-  const [order, setOrder] = useState(cat.order || 0)
+// Sortable Category Card Component
+function SortableCategoryCard({ category, onEdit }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: category.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const handleCardClick = () => {
+    onEdit(category)
+  }
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-          <span className="text-xl">✏️</span>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-white rounded-lg border border-gray-200 p-4 cursor-pointer ${
+        isDragging ? 'shadow-lg' : 'hover:shadow-md hover:border-gray-300'
+      } transition-all`}
+      onClick={handleCardClick}
+    >
+      {/* Drag handle indicator */}
+      <div className="flex items-center gap-2 mb-3">
+        <div 
+          className="flex flex-col gap-1 cursor-grab active:cursor-grabbing p-1 -m-1 rounded hover:bg-gray-100"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
         </div>
-        <h3 className="font-semibold text-gray-900">Editando categoría</h3>
+        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+          category.active !== false ? 'bg-blue-100' : 'bg-gray-100'
+        }`}>
+          <span className="text-lg">📋</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1 flex-wrap">
+            <h3 className={`font-medium text-sm truncate ${
+              category.active !== false ? 'text-gray-900' : 'text-gray-500'
+            }`}>
+              {category.name}
+            </h3>
+            {category.tag && (
+              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full whitespace-nowrap">
+                {category.tag}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 mt-1">
+            <span className={`px-1.5 py-0.5 text-xs rounded-full ${
+              category.active !== false 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {category.active !== false ? 'Activa' : 'Inactiva'}
+            </span>
+          </div>
+        </div>
       </div>
-      
-      <input 
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" 
-        value={name} 
-        onChange={(e) => setName(e.target.value)} 
-        placeholder="Nombre de la categoría"
-      />
-      <input 
-        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent" 
-        type="number" 
-        value={order} 
-        onChange={(e) => setOrder(e.target.value)} 
-        placeholder="Orden"
-      />
-      <div className="flex gap-2">
-        <button 
-          className="flex-1 bg-gray-100 text-gray-700 rounded-lg py-2 text-sm font-medium hover:bg-gray-200 transition-colors" 
-          onClick={onCancel}
-        >
-          Cancelar
-        </button>
-        <button 
-          className="flex-1 bg-gray-900 text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors" 
-          onClick={() => onSave({ ...cat, name, order })}
-        >
-          Guardar
-        </button>
+
+      {/* Description */}
+      {category.description && (
+        <p className="text-xs text-gray-600 overflow-hidden" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical'
+        }}>
+          {category.description}
+        </p>
+      )}
+
+      {/* Visual indicator that card is clickable */}
+      <div className="mt-3 pt-2 border-t border-gray-100">
+        <p className="text-xs text-gray-400 text-center">Toca para editar</p>
       </div>
     </div>
   )

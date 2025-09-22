@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext.jsx'
+import Snackbar from '../../components/Snackbar.jsx'
+import { useSnackbar } from '../../hooks/useSnackbar.js'
 
 export default function Login() {
   const { login, resetPassword } = useAuth()
@@ -8,6 +10,7 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const { snackbar, showSuccess, showError } = useSnackbar()
   const [search] = useSearchParams()
   const navigate = useNavigate()
 
@@ -27,12 +30,15 @@ export default function Login() {
   }
 
   async function onReset() {
-    if (!email) return alert('Ingresá tu email para resetear la contraseña')
+    if (!email) {
+      showError('Ingresá tu email para resetear la contraseña')
+      return
+    }
     try {
       await resetPassword(email)
-      alert('Te enviamos un email para resetear tu contraseña')
+      showSuccess('Te enviamos un email para resetear tu contraseña')
     } catch (err) {
-      alert(err.message)
+      showError(err.message)
     }
   }
 
@@ -45,7 +51,7 @@ export default function Login() {
           <input
             type="email"
             placeholder="Email"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border rounded-lg px-3 py-2"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -53,12 +59,12 @@ export default function Login() {
           <input
             type="password"
             placeholder="Contraseña"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border rounded-lg px-3 py-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button disabled={loading} className="w-full bg-black text-white rounded py-2 disabled:opacity-50">
+          <button disabled={loading} className="w-full bg-[#111827] text-white rounded-lg py-2 disabled:opacity-50">
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
@@ -67,6 +73,16 @@ export default function Login() {
           <Link to="/auth/register" className="text-gray-700 underline">Crear cuenta</Link>
         </div>
       </div>
+      
+      <Snackbar
+        isOpen={snackbar.isOpen}
+        onClose={() => {}}
+        message={snackbar.message}
+        type={snackbar.type}
+        duration={snackbar.duration}
+        position={snackbar.position}
+        action={snackbar.action}
+      />
     </div>
   )
 }
