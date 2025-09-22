@@ -9,9 +9,12 @@ import {
   EyeIcon,
   Bars3Icon,
   BuildingStorefrontIcon,
-  ArrowRightOnRectangleIcon
+  ArrowRightOnRectangleIcon,
+  ChevronDownIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline'
-import { getOwnedRestaurants } from '../../services/firestore.js'
+import { getOwnedRestaurants, createRestaurantWithDefaultMenu } from '../../services/firestore.js'
+import RestaurantDialog from '../../components/RestaurantDialog.jsx'
 
 export default function AdminLayout() {
   const { restaurantId } = useParams()
@@ -20,7 +23,10 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [restaurants, setRestaurants] = useState([])
   const [menuOpen, setMenuOpen] = useState(false)
+  const [restaurantDropdownOpen, setRestaurantDropdownOpen] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const accountRef = useRef(null)
+  const restaurantDropdownRef = useRef(null)
 
   // No need for icon initialization with Heroicons
 
@@ -43,11 +49,14 @@ export default function AdminLayout() {
     return () => { mounted = false }
   }, [user?.uid])
 
-  // Close account menu on outside click
+  // Close menus on outside click
   useEffect(() => {
     function handleClickOutside(e) {
       if (accountRef.current && !accountRef.current.contains(e.target)) {
         setMenuOpen(false)
+      }
+      if (restaurantDropdownRef.current && !restaurantDropdownRef.current.contains(e.target)) {
+        setRestaurantDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -70,7 +79,38 @@ export default function AdminLayout() {
 
   function onRestaurantChange(id) {
     if (!id || id === restaurantId) return
+    setRestaurantDropdownOpen(false)
     navigate(`/admin/${id}`)
+  }
+
+  async function handleCreateRestaurant(formData) {
+    try {
+      const { restaurantId: newRestaurantId } = await createRestaurantWithDefaultMenu({
+        uid: user.uid,
+        name: formData.name,
+        isPublic: true
+      })
+      
+      // Update the restaurant with additional details
+      if (formData.phone || formData.address || formData.website || formData.hours) {
+        const { updateRestaurant } = await import('../../services/firestore.js')
+        await updateRestaurant(newRestaurantId, {
+          phone: formData.phone || '',
+          address: formData.address || '',
+          website: formData.website || '',
+          hours: formData.hours || ''
+        })
+      }
+      
+      // Refresh restaurants list
+      const userRestaurants = await getOwnedRestaurants(user.uid)
+      setRestaurants(userRestaurants)
+      
+      // Navigate to the new restaurant
+      navigate(`/admin/${newRestaurantId}`)
+    } catch (error) {
+      throw error
+    }
   }
 
   const currentRestaurant = restaurants.find((r) => r.id === restaurantId)
@@ -168,23 +208,62 @@ export default function AdminLayout() {
             
             {/* Right side controls */}
             <div className="flex items-center gap-3">
-              {/* Restaurant selector */}
-              <select
-                value={restaurantId || ''}
-                onChange={(e) => onRestaurantChange(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent bg-white"
-              >
-                {restaurants.length === 0 && (
-                  <option value="" disabled>
-                    Cargando restaurantes...
-                  </option>
+              {/* Restaurant selector dropdown */}
+              <div className="relative" ref={restaurantDropdownRef}>
+                <button
+                  onClick={() => setRestaurantDropdownOpen(!restaurantDropdownOpen)}
+                  className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent bg-white hover:bg-gray-50 transition-colors"
+                >
+                  <BuildingStorefrontIcon className="w-4 h-4 text-gray-500" />
+                  <span className="max-w-32 truncate">
+                    {currentRestaurant?.name || 'Seleccionar restaurante'}
+                  </span>
+                  <ChevronDownIcon className="w-4 h-4 text-gray-500" />
+                </button>
+                
+                {restaurantDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50">
+                    {/* Restaurant list */}
+                    {restaurants.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-gray-500">
+                        Cargando restaurantes...
+                      </div>
+                    ) : (
+                      restaurants.map((r) => (
+                        <button
+                          key={r.id}
+                          onClick={() => onRestaurantChange(r.id)}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-100 transition-colors ${
+                            r.id === restaurantId ? 'bg-gray-50 font-medium' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <BuildingStorefrontIcon className="w-4 h-4 text-gray-500" />
+                            <span className="truncate">{r.name}</span>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                    
+                    {/* Separator */}
+                    <div className="border-t border-gray-200 my-1" />
+                    
+                    {/* Create new restaurant option */}
+                    <button
+                      onClick={() => {
+                        setRestaurantDropdownOpen(false)
+                        setCreateDialogOpen(true)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-[#111827] hover:bg-gray-100 transition-colors font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <PlusIcon className="w-4 h-4" />
+                        <span>Crear nuevo restaurante</span>
+                      </div>
+                    </button>
+                  </div>
                 )}
-                {restaurants.length > 0 && restaurants.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
+              </div>
 
               {/* Restaurant Avatar with Context Menu */}
               <div className="relative" ref={accountRef}>
@@ -238,6 +317,13 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      
+      {/* Create Restaurant Dialog */}
+      <RestaurantDialog
+        isOpen={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        onSave={handleCreateRestaurant}
+      />
     </div>
   )
 }

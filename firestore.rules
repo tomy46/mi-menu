@@ -26,7 +26,7 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.owners != null
         && (request.auth.uid in request.resource.data.owners)
-        && request.resource.data.keys().hasOnly(['name','slug','isPublic','owners','phone','address','website','hours','createdAt','updatedAt']);
+        && request.resource.data.keys().hasOnly(['name','slug','isPublic','owners','phone','address','website','hours','theme','socialMedia','createdAt','updatedAt']);
       allow update, delete: if isOwnerOfRestaurant(restaurantId);
     }
 
