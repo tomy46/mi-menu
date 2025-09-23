@@ -80,13 +80,6 @@ export default function MigrationPanel() {
               Este restaurante necesita ser migrado al nuevo sistema de suscripciones 
               para acceder a todas las funcionalidades.
             </p>
-            <div className="text-xs text-amber-700">
-              • Se asignará automáticamente el plan Start (gratuito)
-              <br />
-              • No se perderán datos existentes
-              <br />
-              • El proceso es seguro y reversible
-            </div>
           </div>
 
           {migrationResult && (

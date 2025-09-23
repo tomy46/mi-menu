@@ -21,6 +21,9 @@
     "@heroicons/react": "^2.2.0",
     "@uploadcare/react-uploader": "^1.10.2",
     "firebase": "^12.3.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.3",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^6.27.0"

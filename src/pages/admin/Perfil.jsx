@@ -225,20 +225,6 @@ export default function Perfil() {
         </form>
       </div>
 
-      {/* Security Info */}
-      <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
-        <div className="flex items-center gap-2 mb-2">
-          <ShieldCheckIcon className="w-5 h-5 text-blue-600" />
-          <h2 className="text-lg font-semibold text-blue-900">Seguridad</h2>
-        </div>
-        <ul className="space-y-2 text-sm text-blue-800">
-          <li>• Usa una contraseña fuerte con al menos 8 caracteres</li>
-          <li>• Incluye mayúsculas, minúsculas, números y símbolos</li>
-          <li>• No compartas tu contraseña con nadie</li>
-          <li>• Cambia tu contraseña regularmente</li>
-          <li>• Cierra sesión en dispositivos compartidos</li>
-        </ul>
-      </div>
 
       <Snackbar
         isOpen={snackbar.isOpen}

@@ -435,10 +435,6 @@ function SortableItemCard({ item, onEdit }) {
         </p>
       )}
 
-      {/* Visual indicator for interaction */}
-      <div className="mt-3 pt-2 border-t border-gray-100">
-        <p className="text-xs text-gray-400 text-center">Toca para editar • Mantén presionado para reordenar</p>
-      </div>
     </div>
   )
 }

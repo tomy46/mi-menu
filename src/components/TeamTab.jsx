@@ -110,16 +110,6 @@ export default function TeamTab({ restaurant, restaurantId }) {
           </p>
         </div>
 
-        {/* Team Management Info */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h4 className="text-sm font-medium text-blue-900 mb-2">Gestión de equipo</h4>
-          <ul className="text-xs text-blue-800 space-y-1">
-            <li>• Los miembros del equipo pueden editar categorías y productos</li>
-            <li>• Solo el propietario puede gestionar la configuración del restaurante</li>
-            <li>• Los miembros pueden ver las estadísticas del menú</li>
-            <li>• Podés remover miembros en cualquier momento</li>
-          </ul>
-        </div>
 
         {/* Coming Soon Notice */}
         <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">

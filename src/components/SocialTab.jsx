@@ -99,15 +99,6 @@ export default function SocialTab({
           {saving ? 'Guardando...' : 'Guardar redes sociales'}
         </button>
 
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-          <h4 className="text-sm font-medium text-gray-900 mb-2">Consejos</h4>
-          <ul className="text-xs text-gray-600 space-y-1">
-            <li>• Las redes sociales aparecerán en tu menú público</li>
-            <li>• Usá el mismo nombre de usuario en todas las plataformas</li>
-            <li>• Mantené tus redes actualizadas con fotos de tus platos</li>
-            <li>• Respondé rápido a los mensajes de WhatsApp</li>
-          </ul>
-        </div>
       </div>
     </div>
   )

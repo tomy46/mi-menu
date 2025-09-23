@@ -231,16 +231,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Tips */}
-      <div className="bg-blue-50 rounded-lg border border-blue-200 p-6">
-        <h2 className="text-lg font-semibold text-blue-900 mb-2">💡 Consejos para empezar</h2>
-        <ul className="space-y-2 text-sm text-blue-800">
-          <li>• <strong>Categoría:</strong> Empieza con "Platos Principales" o "Especialidades"</li>
-          <li>• <strong>Producto:</strong> Añade tu plato más popular con precio y descripción</li>
-          <li>• <strong>Logo:</strong> Usa una imagen cuadrada de buena calidad (opcional)</li>
-          <li>• <strong>Compartir:</strong> Una vez público, comparte el enlace en redes sociales</li>
-        </ul>
-      </div>
     </div>
   )
 }

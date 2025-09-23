@@ -459,18 +459,6 @@ export default function Ajustes() {
         </div>
       </div>
 
-      {/* Tips */}
-      <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-6">
-        <h2 className="text-lg font-semibold text-yellow-900 mb-2">💡 Consejos</h2>
-        <ul className="space-y-2 text-sm text-yellow-800">
-          <li>• Completa toda la información para que tus clientes te encuentren fácilmente</li>
-          <li>• Mantén tus horarios actualizados, especialmente en fechas especiales</li>
-          <li>• Incluye el código de área en tu número de teléfono</li>
-          <li>• Asegúrate de que tu sitio web funcione correctamente</li>
-          <li>• Usa el mismo nombre de usuario en todas las redes sociales</li>
-          <li>• Mantén tus redes sociales actualizadas con contenido atractivo</li>
-        </ul>
-      </div>
 
       <Snackbar
         isOpen={snackbar.isOpen}

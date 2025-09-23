@@ -2,20 +2,18 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { 
   PaintBrushIcon,
-  EyeIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  QrCodeIcon
 } from '@heroicons/react/24/outline'
-import { getRestaurant, updateRestaurant, getActiveMenuByRestaurant, toggleMenuActive, createMenu } from '../../services/firestore.js'
+import { getRestaurant, updateRestaurant, getActiveMenuByRestaurant, getMenusByRestaurant, toggleMenuActive, createMenu } from '../../services/firestore.js'
 import { getTheme } from '../../config/themes.js'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
 import Snackbar from '../../components/Snackbar.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
+import QRGenerator from '../../components/QRGenerator.jsx'
 
 const themes = [
   { id: 'elegant', name: 'Elegante', description: 'Diseño clásico y sofisticado' },
-  { id: 'modern', name: 'Moderno', description: 'Limpio y contemporáneo' },
-  { id: 'classic', name: 'Clásico', description: 'Tradicional y elegante' },
-  { id: 'fresh', name: 'Fresco', description: 'Vibrante y energético' },
   { id: 'cupido', name: 'Cupido', description: 'Romántico y delicado' }
 ]
 
@@ -23,24 +21,29 @@ const themes = [
 export default function Menu() {
   const { restaurantId } = useParams()
   const [restaurant, setRestaurant] = useState(null)
-  const [menu, setMenu] = useState(null)
+  const [menus, setMenus] = useState([])
   const [selectedTheme, setSelectedTheme] = useState('elegant')
+  const [originalTheme, setOriginalTheme] = useState('elegant')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
+  const [menuToToggle, setMenuToToggle] = useState(null)
+  const [showQRGenerator, setShowQRGenerator] = useState(false)
   const { snackbar, showSuccess, showError } = useSnackbar()
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [restaurantData, menuData] = await Promise.all([
+        const [restaurantData, menusData] = await Promise.all([
           getRestaurant(restaurantId),
-          getActiveMenuByRestaurant(restaurantId)
+          getMenusByRestaurant(restaurantId)
         ])
         
         setRestaurant(restaurantData)
-        setMenu(menuData)
-        setSelectedTheme(restaurantData.theme || 'elegant')
+        setMenus(menusData)
+        const currentTheme = restaurantData.theme || 'elegant'
+        setSelectedTheme(currentTheme)
+        setOriginalTheme(currentTheme)
       } catch (error) {
         console.error('Error loading data:', error)
         showError('Error al cargar la información')
@@ -54,27 +57,28 @@ export default function Menu() {
     }
   }, [restaurantId])
 
-  const handleThemeChange = async (themeId) => {
+  const handleThemeChange = (themeId) => {
     setSelectedTheme(themeId)
-    await saveChanges({ theme: themeId })
   }
 
 
-  const saveChanges = async (updates) => {
+  const handleSaveTheme = async () => {
     setSaving(true)
     try {
-      await updateRestaurant(restaurantId, updates)
-      showSuccess('Cambios guardados exitosamente')
+      await updateRestaurant(restaurantId, { theme: selectedTheme })
+      setOriginalTheme(selectedTheme)
+      showSuccess('Tema guardado exitosamente')
     } catch (error) {
-      console.error('Error saving changes:', error)
-      showError('Error al guardar los cambios')
+      console.error('Error saving theme:', error)
+      showError('Error al guardar el tema')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleToggleMenu = () => {
-    if (menu?.active) {
+  const handleToggleMenu = (menu) => {
+    setMenuToToggle(menu)
+    if (menu.active) {
       setShowDeactivateDialog(true)
     } else {
       handleConfirmToggle()
@@ -82,19 +86,29 @@ export default function Menu() {
   }
 
   const handleConfirmToggle = async () => {
-    if (!menu) return
+    if (!menuToToggle) return
     
     setSaving(true)
     try {
-      await toggleMenuActive(menu.id, !menu.active)
-      setMenu({ ...menu, active: !menu.active })
-      showSuccess(menu.active ? 'Menú desactivado exitosamente' : 'Menú activado exitosamente')
+      await toggleMenuActive(menuToToggle.id, !menuToToggle.active)
+      
+      // Actualizar el menú en la lista local
+      setMenus(prevMenus => 
+        prevMenus.map(m => 
+          m.id === menuToToggle.id 
+            ? { ...m, active: !m.active }
+            : m
+        )
+      )
+      
+      showSuccess(menuToToggle.active ? 'Menú desactivado exitosamente' : 'Menú activado exitosamente')
     } catch (error) {
       console.error('Error toggling menu:', error)
       showError('Error al cambiar el estado del menú')
     } finally {
       setSaving(false)
       setShowDeactivateDialog(false)
+      setMenuToToggle(null)
     }
   }
 
@@ -121,7 +135,7 @@ export default function Menu() {
         order: 0
       }
       
-      setMenu(newMenu)
+      setMenus(prevMenus => [...prevMenus, newMenu])
       showSuccess('Menú creado y activado exitosamente')
     } catch (error) {
       console.error('Error creating menu:', error)
@@ -194,7 +208,7 @@ export default function Menu() {
           Elige el diseño que mejor represente la personalidad de tu restaurante
         </p>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 gap-6">
           {themes.map((theme) => (
             <div key={theme.id} className="space-y-3">
               <button
@@ -216,23 +230,17 @@ export default function Menu() {
           ))}
         </div>
 
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <div className="flex items-center gap-2">
-            <EyeIcon className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-900">Vista previa</span>
-          </div>
-          <p className="text-sm text-blue-800 mt-1">
-            Puedes ver cómo se ve tu menú con el tema seleccionado visitando{' '}
-            <a 
-              href={`/r/${restaurantId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:no-underline"
+        {selectedTheme !== originalTheme && (
+          <div className="mt-6 flex justify-end">
+            <button
+              onClick={handleSaveTheme}
+              disabled={saving}
+              className="px-6 py-2 bg-[#111827] text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
-              tu menú público
-            </a>
-          </p>
-        </div>
+              {saving ? 'Guardando...' : 'Guardar Tema'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Menu Status */}
@@ -246,34 +254,50 @@ export default function Menu() {
           Controla la disponibilidad de tu menú para los clientes
         </p>
 
-        {menu ? (
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <h3 className="text-sm font-medium text-gray-900">
-                {menu.active ? 'Menú Activo' : 'Menú Desactivado'}
-              </h3>
-              <p className="text-sm text-gray-600 mt-1">
-                {menu.active 
-                  ? 'Tu menú está visible para los clientes' 
-                  : 'Tu menú no está disponible públicamente'
-                }
-              </p>
-            </div>
-            <div className="flex items-center">
-              <button
-                onClick={handleToggleMenu}
-                disabled={saving}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  menu.active ? 'bg-[#111827]' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    menu.active ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
+        {menus.length > 0 ? (
+          <div className="space-y-4">
+            {menus.map((menu) => (
+              <div key={menu.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">
+                    {menu.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {menu.active 
+                      ? 'Visible para los clientes' 
+                      : 'No disponible públicamente'
+                    }
+                  </p>
+                </div>
+                <div className="flex items-center">
+                  <button
+                    onClick={() => handleToggleMenu(menu)}
+                    disabled={saving}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      menu.active ? 'bg-[#111827]' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        menu.active ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            ))}
+            
+            {menus.some(m => !m.active) && (
+              <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+                <div className="flex items-center gap-2">
+                  <ExclamationTriangleIcon className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm font-medium text-amber-900">Menús desactivados</span>
+                </div>
+                <p className="text-sm text-amber-800 mt-1">
+                  Los clientes verán un mensaje de "menú no disponible" para los menús desactivados.
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -296,31 +320,35 @@ export default function Menu() {
             </div>
           </div>
         )}
-
-        {menu && !menu.active && (
-          <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
-            <div className="flex items-center gap-2">
-              <ExclamationTriangleIcon className="w-4 h-4 text-amber-600" />
-              <span className="text-sm font-medium text-amber-900">Menú desactivado</span>
-            </div>
-            <p className="text-sm text-amber-800 mt-1">
-              Los clientes verán un mensaje de "menú no disponible" cuando visiten tu enlace público.
-            </p>
-          </div>
-        )}
       </div>
 
+      {/* QR Code Section */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <QrCodeIcon className="w-5 h-5 text-gray-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Código QR para Imprimir</h2>
+        </div>
+        
+        <p className="text-sm text-gray-600 mb-6">
+          Genera un código QR personalizado para que tus clientes accedan fácilmente a tu menú
+        </p>
 
-      {/* Tips */}
-      <div className="bg-green-50 rounded-lg border border-green-200 p-6">
-        <h2 className="text-lg font-semibold text-green-900 mb-2">💡 Consejos de diseño</h2>
-        <ul className="space-y-2 text-sm text-green-800">
-          <li>• El tema elegante es perfecto para restaurantes tradicionales</li>
-          <li>• El tema moderno funciona bien para cafeterías y lugares casuales</li>
-          <li>• El tema fresco es ideal para restaurantes saludables o veganos</li>
-          <li>• El tema cupido es romántico, ideal para cenas especiales</li>
-          <li>• Puedes cambiar el tema en cualquier momento</li>
-        </ul>
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900">
+              Generar QR Personalizado
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Personaliza colores, estilo y agrega tu logo para imprimir
+            </p>
+          </div>
+          <button
+            onClick={() => setShowQRGenerator(true)}
+            className="px-4 py-2 bg-[#111827] text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+          >
+            Generar QR
+          </button>
+        </div>
       </div>
 
       <Snackbar
@@ -334,11 +362,19 @@ export default function Menu() {
         isOpen={showDeactivateDialog}
         onClose={() => setShowDeactivateDialog(false)}
         onConfirm={handleConfirmToggle}
-        title="¿Desactivar menú?"
-        description="Al desactivar el menú, los clientes verán un mensaje de 'menú no disponible' cuando visiten tu enlace público. Puedes reactivarlo en cualquier momento."
+        title={`¿Desactivar ${menuToToggle?.title}?`}
+        description={`Al desactivar este menú, los clientes verán un mensaje de 'menú no disponible' para ${menuToToggle?.title}. Puedes reactivarlo en cualquier momento.`}
         confirmText="Desactivar"
         cancelText="Cancelar"
         variant="danger"
+      />
+
+      <QRGenerator
+        isOpen={showQRGenerator}
+        onClose={() => setShowQRGenerator(false)}
+        restaurantId={restaurantId}
+        restaurantName={restaurant?.name || ''}
+        restaurantLogo={restaurant?.logo || null}
       />
     </div>
   )
