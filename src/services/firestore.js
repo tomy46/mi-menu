@@ -126,6 +126,30 @@ export async function getItemsByCategory(categoryId, { onlyAvailable = false } =
   return items
 }
 
+export async function getItems(restaurantId, { onlyAvailable = false } = {}) {
+  try {
+    // First get the menu for this restaurant
+    const menu = await getActiveMenuByRestaurant(restaurantId)
+    if (!menu) return []
+    
+    // Get all categories for this menu
+    const categories = await getCategories(menu.id)
+    if (categories.length === 0) return []
+    
+    // Get all items for all categories
+    const allItems = []
+    for (const category of categories) {
+      const categoryItems = await getItemsByCategory(category.id, { onlyAvailable })
+      allItems.push(...categoryItems)
+    }
+    
+    return allItems
+  } catch (error) {
+    console.error('Error fetching items:', error)
+    return []
+  }
+}
+
 // CRUD (basic)
 export async function createCategory({ menuId, name, order, description, tag, active = true }) {
   return addDoc(colCategories(), {

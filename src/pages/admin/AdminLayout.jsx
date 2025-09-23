@@ -11,7 +11,13 @@ import {
   BuildingStorefrontIcon,
   ArrowRightOnRectangleIcon,
   ChevronDownIcon,
-  PlusIcon
+  PlusIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  HomeIcon,
+  ShoppingBagIcon,
+  PaintBrushIcon,
+  UserIcon
 } from '@heroicons/react/24/outline'
 import { getOwnedRestaurants, createRestaurantWithDefaultMenu } from '../../services/firestore.js'
 import RestaurantDialog from '../../components/RestaurantDialog.jsx'
@@ -21,6 +27,7 @@ export default function AdminLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [restaurants, setRestaurants] = useState([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [restaurantDropdownOpen, setRestaurantDropdownOpen] = useState(false)
@@ -72,9 +79,9 @@ export default function AdminLayout() {
   const base = `/admin/${restaurantId}`
 
   const navItems = [
-    { to: `${base}`, label: 'Categorías', icon: Squares2X2Icon },
-    { to: `${base}/items`, label: 'Productos', icon: CubeIcon },
-    { to: `${base}/settings`, label: 'Ajustes', icon: Cog6ToothIcon },
+    { to: `${base}`, label: 'Inicio', icon: HomeIcon },
+    { to: `${base}/productos`, label: 'Productos', icon: ShoppingBagIcon },
+    { to: `${base}/menu`, label: 'Menú', icon: PaintBrushIcon },
   ]
 
   function onRestaurantChange(id) {
@@ -127,20 +134,48 @@ export default function AdminLayout() {
 
       {/* Sidebar */}
       <aside className={`
-        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out
+        fixed lg:static inset-y-0 left-0 z-50 bg-white border-r border-gray-200 transform transition-all duration-300 ease-in-out h-screen
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        ${sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'}
+        w-64
       `}>
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h1 className="text-lg font-semibold text-gray-900">Mi Menú</h1>
-              <button 
-                onClick={() => setSidebarOpen(false)}
-                className="lg:hidden p-1 rounded-md hover:bg-gray-100"
-              >
-                <XMarkIcon className="w-5 h-5" />
-              </button>
+              {!sidebarCollapsed && (
+                <h1 className="text-lg font-semibold text-gray-900 transition-opacity duration-300">
+                  Mi Menú
+                </h1>
+              )}
+              {sidebarCollapsed && (
+                <div className="w-full flex justify-center">
+                  <div className="w-8 h-8 bg-[#111827] rounded-lg flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">M</span>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-1">
+                {/* Collapse toggle button - desktop only */}
+                <button 
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className="hidden lg:flex p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+                  title={sidebarCollapsed ? 'Expandir sidebar' : 'Colapsar sidebar'}
+                >
+                  {sidebarCollapsed ? (
+                    <ChevronRightIcon className="w-4 h-4 text-gray-600" />
+                  ) : (
+                    <ChevronLeftIcon className="w-4 h-4 text-gray-600" />
+                  )}
+                </button>
+                {/* Close button - mobile only */}
+                <button 
+                  onClick={() => setSidebarOpen(false)}
+                  className="lg:hidden p-1.5 rounded-md hover:bg-gray-100"
+                >
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -154,31 +189,32 @@ export default function AdminLayout() {
                     end
                     onClick={() => setSidebarOpen(false)}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      `flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 group relative ${
                         isActive 
                           ? 'bg-[#111827] text-white' 
                           : 'text-gray-700 hover:bg-gray-100'
-                      }`
+                      } ${sidebarCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2'}`
                     }
+                    title={sidebarCollapsed ? item.label : ''}
                   >
-                    <item.icon className="w-5 h-5" />
-                    {item.label}
+                    <item.icon className={`${sidebarCollapsed ? 'w-6 h-6 mx-auto' : 'w-5 h-5'}`} />
+                    {!sidebarCollapsed && (
+                      <span className="transition-opacity duration-300">
+                        {item.label}
+                      </span>
+                    )}
+                    {/* Tooltip for collapsed state */}
+                    {sidebarCollapsed && (
+                      <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
+                        {item.label}
+                      </div>
+                    )}
                   </NavLink>
                 </li>
               ))}
             </ul>
           </nav>
 
-          {/* Footer actions */}
-          <div className="p-4 border-t border-gray-200">
-            <Link 
-              to={`/r/${restaurantId}`}
-              className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <EyeIcon className="w-5 h-5" />
-              Ver menú público
-            </Link>
-          </div>
         </div>
       </aside>
 
@@ -195,12 +231,6 @@ export default function AdminLayout() {
               >
                 <Bars3Icon className="w-5 h-5" />
               </button>
-              <div className="flex items-center gap-2">
-                <BuildingStorefrontIcon className="w-5 h-5 text-gray-600" />
-                <h1 className="text-lg font-semibold text-gray-900">
-                  {currentRestaurant?.name || 'Mi Menú'}
-                </h1>
-              </div>
             </div>
             
             {/* Desktop spacer */}
@@ -214,7 +244,6 @@ export default function AdminLayout() {
                   onClick={() => setRestaurantDropdownOpen(!restaurantDropdownOpen)}
                   className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent bg-white hover:bg-gray-50 transition-colors"
                 >
-                  <BuildingStorefrontIcon className="w-4 h-4 text-gray-500" />
                   <span className="max-w-32 truncate">
                     {currentRestaurant?.name || 'Seleccionar restaurante'}
                   </span>
@@ -237,10 +266,7 @@ export default function AdminLayout() {
                             r.id === restaurantId ? 'bg-gray-50 font-medium' : ''
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <BuildingStorefrontIcon className="w-4 h-4 text-gray-500" />
-                            <span className="truncate">{r.name}</span>
-                          </div>
+                          <span className="truncate">{r.name}</span>
                         </button>
                       ))
                     )}
@@ -289,7 +315,7 @@ export default function AdminLayout() {
                   )}
                 </button>
                 {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-md py-1 z-50">
+                  <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-lg shadow-md py-1 z-50">
                     <div className="px-3 py-2 border-b border-gray-100">
                       <p className="text-sm font-medium text-gray-900">
                         {currentRestaurant?.name || 'Restaurante'}
@@ -298,13 +324,43 @@ export default function AdminLayout() {
                         {user?.email}
                       </p>
                     </div>
-                    <button
-                      onClick={onLogout}
+                    
+                    <Link
+                      to={`/r/${restaurantId}`}
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setMenuOpen(false)}
                     >
-                      <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                      Cerrar sesión
-                    </button>
+                      <EyeIcon className="w-4 h-4" />
+                      Ver como cliente
+                    </Link>
+                    
+                    <Link
+                      to={`/admin/${restaurantId}/perfil`}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <UserIcon className="w-4 h-4" />
+                      Perfil
+                    </Link>
+                    
+                    <Link
+                      to={`/admin/${restaurantId}/ajustes`}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <Cog6ToothIcon className="w-4 h-4" />
+                      Ajustes
+                    </Link>
+                    
+                    <div className="border-t border-gray-100 mt-1 pt-1">
+                      <button
+                        onClick={onLogout}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                        Cerrar sesión
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -313,7 +369,7 @@ export default function AdminLayout() {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 p-4 lg:p-8">
+        <main className="flex-1 p-4 lg:p-8 overflow-y-auto">
           <Outlet />
         </main>
       </div>

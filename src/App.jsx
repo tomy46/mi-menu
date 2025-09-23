@@ -12,9 +12,11 @@ import PublicMenu from './pages/public/PublicMenu.jsx'
 
 // Admin pages
 import AdminLayout from './pages/admin/AdminLayout.jsx'
-import Categories from './pages/admin/Categories.jsx'
-import Items from './pages/admin/Items.jsx'
-import Settings from './pages/admin/Settings.jsx'
+import Dashboard from './pages/admin/Dashboard.jsx'
+import Productos from './pages/admin/Productos.jsx'
+import Menu from './pages/admin/Menu.jsx'
+import Perfil from './pages/admin/Perfil.jsx'
+import Ajustes from './pages/admin/Ajustes.jsx'
 import HomeRedirect from './pages/HomeRedirect.jsx'
 import Welcome from './pages/Welcome.jsx'
 
@@ -36,23 +38,39 @@ function App() {
             index
             element={
               <OwnerGuard>
-                <Categories />
+                <Dashboard />
               </OwnerGuard>
             }
           />
           <Route
-            path="items"
+            path="productos"
             element={
               <OwnerGuard>
-                <Items />
+                <Productos />
               </OwnerGuard>
             }
           />
           <Route
-            path="settings"
+            path="menu"
             element={
               <OwnerGuard>
-                <Settings />
+                <Menu />
+              </OwnerGuard>
+            }
+          />
+          <Route
+            path="perfil"
+            element={
+              <OwnerGuard>
+                <Perfil />
+              </OwnerGuard>
+            }
+          />
+          <Route
+            path="ajustes"
+            element={
+              <OwnerGuard>
+                <Ajustes />
               </OwnerGuard>
             }
           />

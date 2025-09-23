@@ -102,7 +102,7 @@ export default function CategoryDialog({
               value={form.description}
               onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent resize-none"
-              placeholder="Descripción de la categoría (opcional)"
+              placeholder="Descripción se mostrara debajo del titulo del producto.  (opcional)"
               rows={3}
             />
           </div>
