@@ -21,6 +21,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { getOwnedRestaurants, createRestaurantWithDefaultMenu } from '../../services/firestore.js'
 import RestaurantDialog from '../../components/RestaurantDialog.jsx'
+import SubscriptionBadge, { SubscriptionBadgeCompact } from '../../components/SubscriptionBadge.jsx'
 
 export default function AdminLayout() {
   const { restaurantId } = useParams()
@@ -150,9 +151,31 @@ export default function AdminLayout() {
               )}
               {sidebarCollapsed && (
                 <div className="w-full flex justify-center">
-                  <div className="w-8 h-8 bg-[#111827] rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">M</span>
-                  </div>
+                  {currentRestaurant?.logo ? (
+                    <div className="relative">
+                      <img 
+                        src={currentRestaurant.logo} 
+                        className="w-8 h-8 rounded-lg object-cover border border-gray-200" 
+                        alt="Logo"
+                      />
+                      <SubscriptionBadgeCompact 
+                        restaurant={currentRestaurant} 
+                        className="absolute -top-1 -right-1"
+                      />
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="w-8 h-8 bg-[#111827] rounded-lg flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">
+                          {currentRestaurant?.name ? currentRestaurant.name.charAt(0).toUpperCase() : 'M'}
+                        </span>
+                      </div>
+                      <SubscriptionBadgeCompact 
+                        restaurant={currentRestaurant} 
+                        className="absolute -top-1 -right-1"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
               <div className="flex items-center gap-1">
@@ -324,9 +347,10 @@ export default function AdminLayout() {
                       <p className="text-sm font-medium text-gray-900">
                         {currentRestaurant?.name || 'Restaurante'}
                       </p>
-                      <p className="text-xs text-gray-500">
-                        {user?.email}
-                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-500">Plan:</span>
+                        <SubscriptionBadge restaurant={currentRestaurant} className="text-xs" showUsage={false} />
+                      </div>
                     </div>
                     
                     <Link

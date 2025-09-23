@@ -2,14 +2,24 @@ import { useMemo, useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { getRestaurant, updateRestaurant } from '../../services/firestore.js'
 import Snackbar from '../../components/Snackbar.jsx'
+import InfoTab from '../../components/InfoTab.jsx'
+import SocialTab from '../../components/SocialTab.jsx'
+import TeamTab from '../../components/TeamTab.jsx'
+import SubscriptionTab from '../../components/SubscriptionTab.jsx'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
-import { MENU_THEMES, DEFAULT_THEME } from '../../config/themes.js'
+import { 
+  InformationCircleIcon, 
+  ShareIcon, 
+  UsersIcon,
+  CreditCardIcon
+} from '@heroicons/react/24/outline'
 
 export default function Settings() {
   const { restaurantId } = useParams()
   const [restaurant, setRestaurant] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState('info')
   
   // Form states
   const [formData, setFormData] = useState({
@@ -18,12 +28,14 @@ export default function Settings() {
     address: '',
     website: '',
     hours: '',
-    theme: DEFAULT_THEME,
-    socialMedia: [
-      { title: '', url: '' },
-      { title: '', url: '' },
-      { title: '', url: '' }
-    ]
+    isPublic: false
+  })
+  
+  // Social media state
+  const [socialMedia, setSocialMedia] = useState({
+    instagram: '',
+    facebook: '',
+    whatsapp: ''
   })
   
   // Snackbar hook
@@ -63,13 +75,30 @@ export default function Settings() {
             address: r.address || '',
             website: r.website || '',
             hours: r.hours || '',
-            theme: r.theme || DEFAULT_THEME,
-            socialMedia: r.socialMedia || [
-              { title: '', url: '' },
-              { title: '', url: '' },
-              { title: '', url: '' }
-            ]
+            isPublic: r.isPublic || false
           })
+          
+          // Handle social media normalization
+          let normalizedSocialMedia = { instagram: '', facebook: '', whatsapp: '' }
+          if (Array.isArray(r.socialMedia)) {
+            // Convert from old array format
+            r.socialMedia.forEach(social => {
+              if (social.title && social.url) {
+                const title = social.title.toLowerCase()
+                if (title.includes('instagram')) {
+                  const username = social.url.split('instagram.com/')[1]?.split('/')[0]
+                  normalizedSocialMedia.instagram = username ? `@${username}` : social.url
+                } else if (title.includes('facebook')) {
+                  normalizedSocialMedia.facebook = social.url
+                } else if (title.includes('whatsapp')) {
+                  normalizedSocialMedia.whatsapp = social.url
+                }
+              }
+            })
+          } else if (r.socialMedia && typeof r.socialMedia === 'object') {
+            normalizedSocialMedia = r.socialMedia
+          }
+          setSocialMedia(normalizedSocialMedia)
         }
       } catch (error) {
         console.error('Error loading restaurant:', error)
@@ -83,11 +112,45 @@ export default function Settings() {
   async function handleSave() {
     setSaving(true)
     try {
-      await updateRestaurant(restaurantId, formData)
+      // Convert social media to array format for storage
+      const socialMediaArray = []
+      if (socialMedia.instagram) {
+        let instagramUrl = socialMedia.instagram
+        if (instagramUrl.startsWith('@')) {
+          instagramUrl = `https://www.instagram.com/${instagramUrl.substring(1)}`
+        }
+        socialMediaArray.push({ title: 'Instagram', url: instagramUrl })
+      }
+      if (socialMedia.facebook) {
+        let facebookUrl = socialMedia.facebook
+        if (!facebookUrl.startsWith('http')) {
+          facebookUrl = `https://${facebookUrl}`
+        }
+        socialMediaArray.push({ title: 'Facebook', url: facebookUrl })
+      }
+      if (socialMedia.whatsapp) {
+        let whatsappUrl = socialMedia.whatsapp
+        if (whatsappUrl.startsWith('+') || /^\d/.test(whatsappUrl)) {
+          whatsappUrl = `https://wa.me/${whatsappUrl.replace(/[^\d]/g, '')}`
+        }
+        socialMediaArray.push({ title: 'WhatsApp', url: whatsappUrl })
+      }
+      
+      const updateData = {
+        ...formData,
+        socialMedia: socialMediaArray
+      }
+      
+      await updateRestaurant(restaurantId, updateData)
+      
       // Reload restaurant data to get updated slug
       const updatedRestaurant = await getRestaurant(restaurantId)
       setRestaurant(updatedRestaurant)
-      showSuccess('Información del restaurante guardada exitosamente')
+      
+      // Dispatch event for dashboard update
+      window.dispatchEvent(new CustomEvent('dashboardUpdate'))
+      
+      showSuccess('Información guardada exitosamente')
     } catch (error) {
       console.error('Error saving restaurant:', error)
       showError('No se pudo guardar la información. Por favor, intenta nuevamente.')
@@ -105,346 +168,111 @@ export default function Settings() {
     }
   }
 
-  function updateSocialMedia(index, field, value) {
-    setFormData(prev => ({
-      ...prev,
-      socialMedia: prev.socialMedia.map((social, i) => 
-        i === index ? { ...social, [field]: value } : social
-      )
-    }))
-  }
-
   if (loading) {
     return <div className="text-center py-8">Cargando...</div>
   }
 
+  const tabs = [
+    {
+      id: 'info',
+      name: 'Información',
+      icon: InformationCircleIcon,
+      count: null
+    },
+    {
+      id: 'social',
+      name: 'Redes Sociales',
+      icon: ShareIcon,
+      count: null
+    },
+    {
+      id: 'team',
+      name: 'Equipo',
+      icon: UsersIcon,
+      count: restaurant?.owners?.length || 1
+    },
+    {
+      id: 'subscription',
+      name: 'Suscripción',
+      icon: CreditCardIcon,
+      count: null
+    }
+  ]
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600">Configurá tu restaurante y menú</p>
+          <h1 className="text-2xl font-bold text-gray-900">Ajustes</h1>
+          <p className="text-gray-600">Configurá tu restaurante y equipo</p>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Restaurant Information */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl">🏪</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Información del restaurante</h3>
-              <p className="text-sm text-gray-600">Datos básicos de tu negocio</p>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Nombre del restaurante</label>
-              <input
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Nombre de tu restaurante"
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Teléfono</label>
-              <input
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                value={formData.phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                placeholder="+54 11 1234-5678"
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Dirección</label>
-              <input
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                value={formData.address}
-                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                placeholder="Av. Corrientes 1234, CABA"
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Sitio web</label>
-              <input
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                value={formData.website}
-                onChange={(e) => setFormData(prev => ({ ...prev, website: e.target.value }))}
-                placeholder="https://www.mirestaurante.com"
-              />
-            </div>
-            
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Horarios</label>
-              <textarea
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent resize-none"
-                rows="3"
-                value={formData.hours}
-                onChange={(e) => setFormData(prev => ({ ...prev, hours: e.target.value }))}
-                placeholder="Lun-Vie: 12:00-15:00, 19:00-23:00&#10;Sáb-Dom: 12:00-23:00"
-              />
-            </div>
-            
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="w-full bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Guardando...' : 'Guardar información'}
-            </button>
-          </div>
-        </div>
-
-        {/* Social Media */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl">📱</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Redes sociales</h3>
-              <p className="text-sm text-gray-600">Enlaces a tus redes sociales</p>
-            </div>
-          </div>
-          
-          <div className="space-y-4">
-            {formData.socialMedia.map((social, index) => (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
-                    Nombre de la red social
-                  </label>
-                  <input
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    value={social.title}
-                    onChange={(e) => updateSocialMedia(index, 'title', e.target.value)}
-                    placeholder="Instagram, Facebook, Twitter..."
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
-                    URL
-                  </label>
-                  <input
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    value={social.url}
-                    onChange={(e) => updateSocialMedia(index, 'url', e.target.value)}
-                    placeholder="https://instagram.com/tu-usuario"
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full mt-4 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Guardando...' : 'Guardar redes sociales'}
-          </button>
-        </div>
-
-        {/* URLs and Technical Info */}
-        <div className="space-y-6">
-          {/* Subdomain URL */}
-          {subdomainUrl && (
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <span className="text-xl">🌐</span>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">URL personalizada</h3>
-                  <p className="text-sm text-gray-600">Subdominio automático</p>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm text-gray-600 block mb-1">Slug del restaurante</label>
-                  <input 
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" 
-                    value={restaurant?.slug || ''} 
-                    readOnly 
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-600 block mb-1">URL completa</label>
-                  <input 
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" 
-                    value={subdomainUrl} 
-                    readOnly 
-                  />
-                </div>
-                <button 
-                  onClick={() => copy(subdomainUrl)}
-                  className="w-full bg-purple-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-purple-700 transition-colors"
-                >
-                  Copiar subdominio
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Standard URL */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <span className="text-xl">🔗</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">Link estándar</h3>
-                <p className="text-sm text-gray-600">URL tradicional del menú</p>
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              <input 
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" 
-                value={publicUrl} 
-                readOnly 
-              />
-              <button 
-                onClick={() => copy(publicUrl)}
-                className="w-full bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
-              >
-                Copiar link
-              </button>
-            </div>
-          </div>
-
-          {/* Technical Info */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                <span className="text-xl">⚙️</span>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900">Información técnica</h3>
-                <p className="text-sm text-gray-600">Datos del sistema</p>
-              </div>
-            </div>
-            
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">ID:</span>
-                <span className="font-mono text-xs">{restaurantId}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Estado:</span>
-                <span className="text-green-600">Público</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Slug:</span>
-                <span className="font-mono text-xs">{restaurant?.slug || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Theme Configuration */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl">🎨</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Tema del menú</h3>
-              <p className="text-sm text-gray-600">Personaliza el diseño de tu menú público</p>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {Object.values(MENU_THEMES).map((theme) => (
-              <div
-                key={theme.id}
-                className={`relative border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                  formData.theme === theme.id
-                    ? 'border-[#111827] bg-gray-50'
-                    : 'border-gray-200 hover:border-gray-300'
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8 overflow-x-auto scrollbar-hide">
+          {tabs.map((tab) => {
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap flex-shrink-0 ${
+                  activeTab === tab.id
+                    ? 'border-[#111827] text-[#111827]'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
-                onClick={() => setFormData(prev => ({ ...prev, theme: theme.id }))}
               >
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">{theme.preview}</span>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">{theme.name}</h4>
-                    <p className="text-xs text-gray-600">{theme.description}</p>
-                  </div>
-                </div>
-                
-                {/* Theme preview */}
-                <div 
-                  className="h-16 rounded-md p-2 text-xs"
-                  style={{ 
-                    backgroundColor: theme.colors.background,
-                    border: `1px solid ${theme.colors.border}`
-                  }}
-                >
-                  <div 
-                    className="font-semibold mb-1"
-                    style={{ 
-                      color: theme.colors.text.primary,
-                      fontFamily: theme.fonts.primary
-                    }}
-                  >
-                    {restaurant?.name || 'Mi Restaurante'}
-                  </div>
-                  <div 
-                    className="text-xs"
-                    style={{ color: theme.colors.text.secondary }}
-                  >
-                    Categoría • Producto
-                  </div>
-                </div>
-                
-                {formData.theme === theme.id && (
-                  <div className="absolute top-2 right-2">
-                    <div className="w-5 h-5 bg-[#111827] rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs">✓</span>
-                    </div>
-                  </div>
+                <Icon className="w-5 h-5" />
+                {tab.name}
+                {tab.count && (
+                  <span className="ml-1 bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs">
+                    {tab.count}
+                  </span>
                 )}
-              </div>
-            ))}
-          </div>
-          
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full mt-4 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Guardando...' : 'Guardar tema'}
-          </button>
-        </div>
+              </button>
+            )
+          })}
+        </nav>
+      </div>
 
-        {/* Help card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-              <span className="text-xl">❓</span>
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Ayuda</h3>
-              <p className="text-sm text-gray-600">Guías y soporte</p>
-            </div>
-          </div>
-          
-          <div className="space-y-2 text-sm text-gray-600">
-            <p>• Creá categorías para organizar tu menú</p>
-            <p>• Agregá productos con precios y descripciones</p>
-            <p>• Compartí el link público con tus clientes</p>
-            <p>• Elegí un tema que represente tu restaurante</p>
-          </div>
-        </div>
+      {/* Tab Content */}
+      <div className="mt-6">
+        {activeTab === 'info' && (
+          <InfoTab 
+            formData={formData} 
+            setFormData={setFormData} 
+            saving={saving} 
+            handleSave={handleSave}
+            publicUrl={publicUrl}
+            subdomainUrl={subdomainUrl}
+            copy={copy}
+          />
+        )}
+        
+        {activeTab === 'social' && (
+          <SocialTab 
+            socialMedia={socialMedia}
+            setSocialMedia={setSocialMedia}
+            saving={saving} 
+            handleSave={handleSave}
+          />
+        )}
+        
+        {activeTab === 'team' && (
+          <TeamTab 
+            restaurant={restaurant}
+            restaurantId={restaurantId}
+          />
+        )}
+        
+        {activeTab === 'subscription' && (
+          <SubscriptionTab 
+            restaurant={restaurant}
+            restaurantId={restaurantId}
+          />
+        )}
       </div>
 
       {/* Snackbar */}

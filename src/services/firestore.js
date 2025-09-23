@@ -14,12 +14,16 @@ import {
   limit,
   writeBatch,
 } from 'firebase/firestore'
+import { SUBSCRIPTION_PLANS, SUBSCRIPTION_STATUS } from '../config/subscriptionPlans'
 
 // Collections
 export const colRestaurants = () => collection(db, 'restaurants')
 export const colMenus = () => collection(db, 'menus')
 export const colCategories = () => collection(db, 'categories')
 export const colItems = () => collection(db, 'items')
+export const colSubscriptions = () => collection(db, 'subscriptions')
+export const colPlans = () => collection(db, 'plans')
+export const colTeamMembers = () => collection(db, 'teamMembers')
 
 // Restaurant helpers
 export async function getRestaurant(id) {
@@ -321,6 +325,11 @@ export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = tr
       { title: '', url: '' }
     ],
     logo: '', // Default empty logo
+    // Subscription fields
+    subscriptionPlan: SUBSCRIPTION_PLANS.START, // Default to Start plan
+    subscriptionStatus: SUBSCRIPTION_STATUS.ACTIVE, // Active by default
+    subscriptionStartDate: serverTimestamp(),
+    subscriptionEndDate: null, // Will be set when implementing billing
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -339,4 +348,129 @@ export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = tr
   })
   
   return { restaurantId: restaurantRef.id, menuId: menuRef.id }
+}
+
+// Subscription and limits functions
+export async function getRestaurantUsage(restaurantId) {
+  try {
+    // Count menus
+    const menusQuery = query(colMenus(), where('restaurantId', '==', restaurantId), where('deleted', '==', false))
+    const menusSnap = await getDocs(menusQuery)
+    const menusCount = menusSnap.size
+
+    // Count categories
+    const categoriesQuery = query(colCategories(), where('restaurantId', '==', restaurantId))
+    const categoriesSnap = await getDocs(categoriesQuery)
+    const categoriesCount = categoriesSnap.size
+
+    // Count products
+    const itemsQuery = query(colItems(), where('restaurantId', '==', restaurantId))
+    const itemsSnap = await getDocs(itemsQuery)
+    const productsCount = itemsSnap.size
+
+    // Team members count (for now just owners, will expand later)
+    const restaurant = await getRestaurant(restaurantId)
+    const teamMembersCount = restaurant?.owners?.length || 1
+
+    return {
+      menus: menusCount,
+      categories: categoriesCount,
+      products: productsCount,
+      teamMembers: teamMembersCount
+    }
+  } catch (error) {
+    console.error('Error getting restaurant usage:', error)
+    return {
+      menus: 0,
+      categories: 0,
+      products: 0,
+      teamMembers: 1
+    }
+  }
+}
+
+export async function checkSubscriptionLimit(restaurantId, limitType, increment = 1) {
+  try {
+    const restaurant = await getRestaurant(restaurantId)
+    if (!restaurant) return { allowed: false, reason: 'Restaurant not found' }
+
+    const { subscriptionPlan = SUBSCRIPTION_PLANS.START } = restaurant
+    const usage = await getRestaurantUsage(restaurantId)
+    
+    // Import limit checking functions
+    const { isWithinLimit, getLimit } = await import('../config/subscriptionPlans')
+    
+    const currentCount = usage[limitType] || 0
+    const newCount = currentCount + increment
+    const limit = getLimit(subscriptionPlan, limitType)
+    
+    // -1 means unlimited
+    if (limit === -1) {
+      return { allowed: true, current: currentCount, limit: 'unlimited' }
+    }
+    
+    const allowed = newCount <= limit
+    
+    return {
+      allowed,
+      current: currentCount,
+      limit,
+      remaining: Math.max(0, limit - currentCount),
+      reason: allowed ? null : `Límite de ${limitType} alcanzado (${limit})`
+    }
+  } catch (error) {
+    console.error('Error checking subscription limit:', error)
+    return { allowed: false, reason: 'Error checking limits' }
+  }
+}
+
+export async function updateSubscriptionPlan(restaurantId, newPlan) {
+  try {
+    const restaurantRef = doc(db, 'restaurants', restaurantId)
+    await updateDoc(restaurantRef, {
+      subscriptionPlan: newPlan,
+      updatedAt: serverTimestamp()
+    })
+    return true
+  } catch (error) {
+    console.error('Error updating subscription plan:', error)
+    return false
+  }
+}
+
+// Migration function for subscription fields
+export async function migrateRestaurantToSubscription(restaurantId) {
+  try {
+    const restaurantRef = doc(db, 'restaurants', restaurantId)
+    
+    // Get current restaurant data
+    const restaurantDoc = await getDoc(restaurantRef)
+    if (!restaurantDoc.exists()) {
+      throw new Error('Restaurant not found')
+    }
+    
+    const data = restaurantDoc.data()
+    
+    // Check if already migrated
+    if (data.subscriptionPlan) {
+      console.log('Restaurant already has subscription plan')
+      return { success: true, alreadyMigrated: true }
+    }
+    
+    // Update with subscription fields
+    await updateDoc(restaurantRef, {
+      subscriptionPlan: 'start',
+      subscriptionStatus: 'active',
+      subscriptionStartDate: serverTimestamp(),
+      subscriptionEndDate: null,
+      updatedAt: serverTimestamp()
+    })
+    
+    console.log('Restaurant migrated successfully')
+    return { success: true, alreadyMigrated: false }
+    
+  } catch (error) {
+    console.error('Error migrating restaurant:', error)
+    return { success: false, error: error.message }
+  }
 }

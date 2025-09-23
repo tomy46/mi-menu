@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getItemsByCategory, getItems, updateItem, reorderItems } from '../../services/firestore.js'
+import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getItemsByCategory, getItems, updateItem, reorderItems, checkSubscriptionLimit } from '../../services/firestore.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Snackbar from '../../components/Snackbar.jsx'
+import UpgradePrompt from '../../components/UpgradePrompt.jsx'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
+import { getRestaurant } from '../../services/firestore.js'
 import {
   DndContext,
   closestCenter,
@@ -31,9 +33,11 @@ export default function Items({ onItemsChange }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ name: '', description: '', price: 0, currency: 'ARS', available: true, order: 0 })
-  const [editingItem, setEditingItem] = useState(null)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [editingItem, setEditingItem] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, itemId: null, itemName: '' })
+  const [upgradePrompt, setUpgradePrompt] = useState({ isOpen: false, limitCheck: null })
+  const [restaurant, setRestaurant] = useState(null)
   const { snackbar, showError, showSuccess } = useSnackbar()
 
   // Drag and drop sensors with better mobile support
@@ -84,8 +88,18 @@ export default function Items({ onItemsChange }) {
   useEffect(() => {
     load()
     loadAllItems()
+    loadRestaurant()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId])
+
+  async function loadRestaurant() {
+    try {
+      const restaurantData = await getRestaurant(restaurantId)
+      setRestaurant(restaurantData)
+    } catch (error) {
+      console.error('Error loading restaurant:', error)
+    }
+  }
 
   useEffect(() => {
     loadItems()
@@ -102,12 +116,30 @@ export default function Items({ onItemsChange }) {
       showError('El precio debe ser mayor o igual a 0')
       return
     }
+
+    // Check subscription limits before creating
+    const limitCheck = await checkSubscriptionLimit(restaurantId, 'products')
+    if (!limitCheck.allowed) {
+      setUpgradePrompt({ 
+        isOpen: true, 
+        limitCheck: { 
+          ...limitCheck, 
+          limitType: 'products',
+          currentPlan: restaurant?.subscriptionPlan || 'start'
+        } 
+      })
+      return
+    }
+
     await createItem({ ...form, categoryId, price: Number(form.price) || 0, order: Number(form.order) || 0 })
     setForm({ name: '', description: '', price: 0, currency: 'ARS', available: true, order: 0 })
     setShowCreateDialog(false)
     showSuccess('Producto creado exitosamente')
     await loadItems()
     await loadAllItems()
+    
+    // Dispatch event for dashboard update
+    window.dispatchEvent(new CustomEvent('dashboardUpdate'))
   }
 
   async function onSave(it) {
@@ -307,6 +339,15 @@ export default function Items({ onItemsChange }) {
         duration={snackbar.duration}
         position={snackbar.position}
         action={snackbar.action}
+      />
+
+      <UpgradePrompt
+        isOpen={upgradePrompt.isOpen}
+        onClose={() => setUpgradePrompt({ isOpen: false, limitCheck: null })}
+        currentPlan={upgradePrompt.limitCheck?.currentPlan}
+        limitType={upgradePrompt.limitCheck?.limitType}
+        currentUsage={upgradePrompt.limitCheck?.current}
+        limit={upgradePrompt.limitCheck?.limit}
       />
     </div>
   )

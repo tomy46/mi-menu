@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createCategory, deleteCategory, getActiveMenuByRestaurant, getCategories, updateCategory, reorderCategories } from '../../services/firestore.js'
+import { createCategory, deleteCategory, getActiveMenuByRestaurant, getCategories, updateCategory, reorderCategories, checkSubscriptionLimit } from '../../services/firestore.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Snackbar from '../../components/Snackbar.jsx'
 import CategoryDialog from '../../components/CategoryDialog.jsx'
+import UpgradePrompt from '../../components/UpgradePrompt.jsx'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
+import { getRestaurant } from '../../services/firestore.js'
 import {
   DndContext,
   closestCenter,
@@ -32,6 +34,8 @@ export default function Categories({ onCategoriesChange }) {
   const [createDialog, setCreateDialog] = useState(false)
   const [editDialog, setEditDialog] = useState({ isOpen: false, category: null })
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, categoryId: null, categoryName: '' })
+  const [upgradePrompt, setUpgradePrompt] = useState({ isOpen: false, limitCheck: null })
+  const [restaurant, setRestaurant] = useState(null)
   const { snackbar, showError, showSuccess } = useSnackbar()
 
   // Drag and drop sensors with better mobile support
@@ -66,7 +70,17 @@ export default function Categories({ onCategoriesChange }) {
 
   useEffect(() => {
     load()
+    loadRestaurant()
   }, [restaurantId])
+
+  async function loadRestaurant() {
+    try {
+      const restaurantData = await getRestaurant(restaurantId)
+      setRestaurant(restaurantData)
+    } catch (error) {
+      console.error('Error loading restaurant:', error)
+    }
+  }
 
   // Handle drag end
   async function handleDragEnd(event) {
@@ -99,6 +113,20 @@ export default function Categories({ onCategoriesChange }) {
   // Create category
   async function handleCreate(formData) {
     try {
+      // Check subscription limits before creating
+      const limitCheck = await checkSubscriptionLimit(restaurantId, 'categories')
+      if (!limitCheck.allowed) {
+        setUpgradePrompt({ 
+          isOpen: true, 
+          limitCheck: { 
+            ...limitCheck, 
+            limitType: 'categories',
+            currentPlan: restaurant?.subscriptionPlan || 'start'
+          } 
+        })
+        return
+      }
+
       const nextOrder = categories.length > 0 ? Math.max(...categories.map(c => c.order || 0)) + 1 : 0
       await createCategory({ 
         menuId, 
@@ -111,6 +139,9 @@ export default function Categories({ onCategoriesChange }) {
       setCreateDialog(false)
       showSuccess('Categoría creada exitosamente')
       await load()
+      
+      // Dispatch event for dashboard update
+      window.dispatchEvent(new CustomEvent('dashboardUpdate'))
     } catch (error) {
       showError('Error al crear la categoría')
     }
@@ -241,6 +272,15 @@ export default function Categories({ onCategoriesChange }) {
         duration={snackbar.duration}
         position={snackbar.position}
         action={snackbar.action}
+      />
+
+      <UpgradePrompt
+        isOpen={upgradePrompt.isOpen}
+        onClose={() => setUpgradePrompt({ isOpen: false, limitCheck: null })}
+        currentPlan={upgradePrompt.limitCheck?.currentPlan}
+        limitType={upgradePrompt.limitCheck?.limitType}
+        currentUsage={upgradePrompt.limitCheck?.current}
+        limit={upgradePrompt.limitCheck?.limit}
       />
     </div>
   )
