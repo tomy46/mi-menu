@@ -15,6 +15,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { SUBSCRIPTION_PLANS, SUBSCRIPTION_STATUS } from '../config/subscriptionPlans'
+import { ANALYTICS_EVENTS, STATS_TYPES, AGGREGATION_CONFIG } from '../config/analytics'
 
 // Collections
 export const colRestaurants = () => collection(db, 'restaurants')
@@ -24,6 +25,8 @@ export const colItems = () => collection(db, 'items')
 export const colSubscriptions = () => collection(db, 'subscriptions')
 export const colPlans = () => collection(db, 'plans')
 export const colTeamMembers = () => collection(db, 'teamMembers')
+export const colAnalyticsEvents = () => collection(db, 'analyticsEvents')
+export const colAnalyticsStats = () => collection(db, 'analyticsStats')
 
 // Restaurant helpers
 export async function getRestaurant(id) {
@@ -438,39 +441,346 @@ export async function updateSubscriptionPlan(restaurantId, newPlan) {
   }
 }
 
-// Migration function for subscription fields
-export async function migrateRestaurantToSubscription(restaurantId) {
+
+// ===== ANALYTICS FUNCTIONS =====
+
+/**
+ * Registra un evento de analytics (escritura frecuente)
+ * Optimizado para alta frecuencia de escritura
+ */
+export async function trackEvent(eventData) {
   try {
-    const restaurantRef = doc(db, 'restaurants', restaurantId)
-    
-    // Get current restaurant data
-    const restaurantDoc = await getDoc(restaurantRef)
-    if (!restaurantDoc.exists()) {
-      throw new Error('Restaurant not found')
+    const event = {
+      ...eventData,
+      timestamp: serverTimestamp(),
+      createdAt: serverTimestamp()
     }
     
-    const data = restaurantDoc.data()
+    // Escribir evento sin esperar respuesta para mejor performance
+    await addDoc(colAnalyticsEvents(), event)
     
-    // Check if already migrated
-    if (data.subscriptionPlan) {
-      console.log('Restaurant already has subscription plan')
-      return { success: true, alreadyMigrated: true }
+    // Actualizar estadísticas agregadas si es necesario
+    if (eventData.type === ANALYTICS_EVENTS.MENU_VIEW) {
+      await updateMenuViewStats(eventData.restaurantId, eventData.menuId)
     }
     
-    // Update with subscription fields
-    await updateDoc(restaurantRef, {
-      subscriptionPlan: 'start',
-      subscriptionStatus: 'active',
-      subscriptionStartDate: serverTimestamp(),
-      subscriptionEndDate: null,
-      updatedAt: serverTimestamp()
-    })
+    return { success: true }
+  } catch (error) {
+    console.error('Error tracking event:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Obtiene estadísticas agregadas (lectura frecuente)
+ * Optimizado para alta frecuencia de lectura
+ */
+export async function getRestaurantStats(restaurantId) {
+  try {
+    const statsDoc = doc(db, 'analyticsStats', `restaurant_${restaurantId}`)
+    const snap = await getDoc(statsDoc)
     
-    console.log('Restaurant migrated successfully')
-    return { success: true, alreadyMigrated: false }
+    if (snap.exists()) {
+      return { success: true, data: snap.data() }
+    }
+    
+    // Si no existen estadísticas, calcularlas por primera vez
+    const stats = await calculateRestaurantStats(restaurantId)
+    return { success: true, data: stats }
     
   } catch (error) {
-    console.error('Error migrating restaurant:', error)
+    console.error('Error getting restaurant stats:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Obtiene estadísticas de un menú específico
+ */
+export async function getMenuStats(restaurantId, menuId) {
+  try {
+    const statsDoc = doc(db, 'analyticsStats', `menu_${restaurantId}_${menuId}`)
+    const snap = await getDoc(statsDoc)
+    
+    if (snap.exists()) {
+      return { success: true, data: snap.data() }
+    }
+    
+    // Si no existen estadísticas, calcularlas por primera vez
+    const stats = await calculateMenuStats(restaurantId, menuId)
+    return { success: true, data: stats }
+    
+  } catch (error) {
+    console.error('Error getting menu stats:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Calcula estadísticas agregadas de un restaurante
+ * Se ejecuta cuando se crean/actualizan/eliminan productos
+ */
+export async function calculateRestaurantStats(restaurantId) {
+  try {
+    // Obtener todos los menús activos del restaurante
+    const menusQuery = query(
+      colMenus(),
+      where('restaurantId', '==', restaurantId),
+      where('active', '==', true),
+      where('deleted', '==', false)
+    )
+    const menusSnap = await getDocs(menusQuery)
+    const menus = menusSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    
+    let totalItems = 0
+    let totalCategories = 0
+    let totalPrice = 0
+    let itemsWithPrice = 0
+    
+    // Calcular estadísticas por menú
+    for (const menu of menus) {
+      // Contar categorías activas
+      const categoriesQuery = query(
+        colCategories(),
+        where('menuId', '==', menu.id),
+        where('active', '==', true),
+        where('deleted', '==', false)
+      )
+      const categoriesSnap = await getDocs(categoriesQuery)
+      totalCategories += categoriesSnap.size
+      
+      // Contar productos activos y calcular precios
+      const itemsQuery = query(
+        colItems(),
+        where('menuId', '==', menu.id),
+        where('available', '==', true),
+        where('deleted', '==', false)
+      )
+      const itemsSnap = await getDocs(itemsQuery)
+      totalItems += itemsSnap.size
+      
+      // Calcular precio promedio
+      itemsSnap.docs.forEach(doc => {
+        const item = doc.data()
+        if (item.price && item.price > 0) {
+          totalPrice += item.price
+          itemsWithPrice++
+        }
+      })
+    }
+    
+    const averagePrice = itemsWithPrice > 0 ? totalPrice / itemsWithPrice : 0
+    
+    const stats = {
+      restaurantId,
+      totalMenus: menus.length,
+      totalCategories,
+      totalItems,
+      averagePrice: Math.round(averagePrice * 100) / 100, // Redondear a 2 decimales
+      lastCalculated: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }
+    
+    // Guardar estadísticas agregadas
+    const statsDoc = doc(db, 'analyticsStats', `restaurant_${restaurantId}`)
+    await updateDoc(statsDoc, stats).catch(async () => {
+      // Si el documento no existe, crearlo
+      await addDoc(colAnalyticsStats(), { id: `restaurant_${restaurantId}`, ...stats })
+    })
+    
+    return stats
+    
+  } catch (error) {
+    console.error('Error calculating restaurant stats:', error)
+    throw error
+  }
+}
+
+/**
+ * Calcula estadísticas de un menú específico
+ */
+export async function calculateMenuStats(restaurantId, menuId) {
+  try {
+    // Contar categorías activas del menú
+    const categoriesQuery = query(
+      colCategories(),
+      where('menuId', '==', menuId),
+      where('active', '==', true),
+      where('deleted', '==', false)
+    )
+    const categoriesSnap = await getDocs(categoriesQuery)
+    
+    // Contar productos activos del menú
+    const itemsQuery = query(
+      colItems(),
+      where('menuId', '==', menuId),
+      where('available', '==', true),
+      where('deleted', '==', false)
+    )
+    const itemsSnap = await getDocs(itemsQuery)
+    
+    // Calcular precio promedio del menú
+    let totalPrice = 0
+    let itemsWithPrice = 0
+    
+    itemsSnap.docs.forEach(doc => {
+      const item = doc.data()
+      if (item.price && item.price > 0) {
+        totalPrice += item.price
+        itemsWithPrice++
+      }
+    })
+    
+    const averagePrice = itemsWithPrice > 0 ? totalPrice / itemsWithPrice : 0
+    
+    const stats = {
+      restaurantId,
+      menuId,
+      totalCategories: categoriesSnap.size,
+      totalItems: itemsSnap.size,
+      averagePrice: Math.round(averagePrice * 100) / 100,
+      lastCalculated: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }
+    
+    // Guardar estadísticas del menú
+    const statsDoc = doc(db, 'analyticsStats', `menu_${restaurantId}_${menuId}`)
+    await updateDoc(statsDoc, stats).catch(async () => {
+      // Si el documento no existe, crearlo
+      await addDoc(colAnalyticsStats(), { id: `menu_${restaurantId}_${menuId}`, ...stats })
+    })
+    
+    return stats
+    
+  } catch (error) {
+    console.error('Error calculating menu stats:', error)
+    throw error
+  }
+}
+
+/**
+ * Actualiza estadísticas de visualizaciones de menú
+ * Se ejecuta cada vez que alguien ve el menú público
+ */
+async function updateMenuViewStats(restaurantId, menuId) {
+  try {
+    const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+    const statsId = `views_${restaurantId}_${menuId}_${today}`
+    const statsDoc = doc(db, 'analyticsStats', statsId)
+    
+    const snap = await getDoc(statsDoc)
+    
+    if (snap.exists()) {
+      // Incrementar contador existente
+      await updateDoc(statsDoc, {
+        views: (snap.data().views || 0) + 1,
+        lastView: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+    } else {
+      // Crear nuevo contador
+      await addDoc(colAnalyticsStats(), {
+        id: statsId,
+        restaurantId,
+        menuId,
+        date: today,
+        views: 1,
+        type: 'daily_views',
+        lastView: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+    }
+    
+  } catch (error) {
+    console.error('Error updating menu view stats:', error)
+  }
+}
+
+/**
+ * Obtiene estadísticas de visualizaciones por período
+ */
+export async function getViewStats(restaurantId, menuId = null, days = 30) {
+  try {
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(endDate.getDate() - days)
+    
+    const startDateStr = startDate.toISOString().split('T')[0]
+    const endDateStr = endDate.toISOString().split('T')[0]
+    
+    let q
+    if (menuId) {
+      // Estadísticas de un menú específico
+      q = query(
+        colAnalyticsStats(),
+        where('restaurantId', '==', restaurantId),
+        where('menuId', '==', menuId),
+        where('type', '==', 'daily_views'),
+        where('date', '>=', startDateStr),
+        where('date', '<=', endDateStr),
+        orderBy('date', 'desc')
+      )
+    } else {
+      // Estadísticas de todo el restaurante
+      q = query(
+        colAnalyticsStats(),
+        where('restaurantId', '==', restaurantId),
+        where('type', '==', 'daily_views'),
+        where('date', '>=', startDateStr),
+        where('date', '<=', endDateStr),
+        orderBy('date', 'desc')
+      )
+    }
+    
+    const snap = await getDocs(q)
+    const viewStats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    
+    // Calcular totales
+    const totalViews = viewStats.reduce((sum, stat) => sum + (stat.views || 0), 0)
+    const avgViewsPerDay = viewStats.length > 0 ? totalViews / viewStats.length : 0
+    
+    return {
+      success: true,
+      data: {
+        totalViews,
+        avgViewsPerDay: Math.round(avgViewsPerDay * 100) / 100,
+        dailyStats: viewStats,
+        period: { startDate: startDateStr, endDate: endDateStr, days }
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error getting view stats:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
+ * Función helper para actualizar estadísticas cuando se modifican productos
+ * Debe llamarse después de crear/actualizar/eliminar productos o categorías
+ */
+export async function refreshRestaurantStats(restaurantId) {
+  try {
+    await calculateRestaurantStats(restaurantId)
+    
+    // También actualizar estadísticas de cada menú
+    const menusQuery = query(
+      colMenus(),
+      where('restaurantId', '==', restaurantId),
+      where('active', '==', true),
+      where('deleted', '==', false)
+    )
+    const menusSnap = await getDocs(menusQuery)
+    
+    for (const menuDoc of menusSnap.docs) {
+      await calculateMenuStats(restaurantId, menuDoc.id)
+    }
+    
+    return { success: true }
+    
+  } catch (error) {
+    console.error('Error refreshing restaurant stats:', error)
     return { success: false, error: error.message }
   }
 }

@@ -14,9 +14,7 @@ export default function HomeRedirect() {
       if (loading) return
       if (!user) return
       try {
-        console.log('[HomeRedirect] uid:', user.uid)
-        const r = await getFirstOwnedRestaurant(user.uid)
-        console.log('[HomeRedirect] first owned restaurant:', r)
+         const r = await getFirstOwnedRestaurant(user.uid)
         if (!active) return
         if (r) navigate(`/admin/${r.id}`)
         else navigate('/welcome')

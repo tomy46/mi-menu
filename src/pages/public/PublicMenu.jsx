@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
-import { getActiveMenuByRestaurant, getCategories, getItemsByCategory, getRestaurant } from '../../services/firestore.js'
+import { getActiveMenuByRestaurant, getCategories, getItemsByCategory, getRestaurant, trackEvent } from '../../services/firestore.js'
 import { getTheme, getGoogleFontsUrl, getCategoryIcon, DEFAULT_THEME } from '../../config/themes.js'
+import { ANALYTICS_EVENTS } from '../../config/analytics.js'
 import MenuUnavailable from '../../components/MenuUnavailable.jsx'
 
 export default function PublicMenu() {
@@ -146,6 +147,19 @@ export default function PublicMenu() {
         const m = await getActiveMenuByRestaurant(restaurantId)
         if (active) setMenu(m)
         if (m) {
+          // Track menu view event (optimized for high frequency writes)
+          trackEvent({
+            type: ANALYTICS_EVENTS.MENU_VIEW,
+            restaurantId: restaurantId,
+            menuId: m.id,
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString(),
+            sessionId: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+          }).catch(error => {
+            // Silent fail - analytics shouldn't break the user experience
+            console.warn('Analytics tracking failed:', error)
+          })
+          
           const cats = await getCategories(m.id)
           if (active) setCategories(cats)
           const itemsMap = {}

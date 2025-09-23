@@ -60,5 +60,26 @@ service cloud.firestore {
       allow create: if isOwnerOfRestaurant(itemRestaurantIdFromNew());
       allow update, delete: if isOwnerOfRestaurant(itemRestaurantIdFromExisting());
     }
+
+    // analyticsEvents: public write for tracking, owner read
+    match /analyticsEvents/{eventId} {
+      allow read: if isOwnerOfRestaurant(resource.data.restaurantId);
+      allow create: if request.resource.data.keys().hasOnly(['type','restaurantId','menuId','userAgent','timestamp','sessionId','createdAt']);
+    }
+
+    // analyticsStats: owner read/write for aggregated statistics
+    match /analyticsStats/{statsId} {
+      allow read: if isSignedIn() && (
+        // Allow reading stats that start with restaurant_ + restaurantId
+        statsId.matches('restaurant_.*') && isOwnerOfRestaurant(statsId.split('restaurant_')[1])
+        ||
+        // Allow reading stats that start with menu_ + restaurantId
+        statsId.matches('menu_.*') && isOwnerOfRestaurant(statsId.split('menu_')[1].split('_')[0])
+        ||
+        // Allow reading stats that start with views_ + restaurantId  
+        statsId.matches('views_.*') && isOwnerOfRestaurant(statsId.split('views_')[1].split('_')[0])
+      );
+      allow write: if isSignedIn() && request.resource.data.restaurantId != null && isOwnerOfRestaurant(request.resource.data.restaurantId);
+    }
   }
 }

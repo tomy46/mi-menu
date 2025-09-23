@@ -22,10 +22,9 @@ export default function SubscriptionTab({ restaurant, restaurantId }) {
     setLoading(true)
     try {
       // TODO: Implement upgrade flow
-      console.log('Upgrading to', nextPlan)
       // showSuccess('Plan actualizado exitosamente')
     } catch (error) {
-      console.error('Error upgrading plan:', error)
+     
       // showError('Error al actualizar el plan')
     } finally {
       setLoading(false)

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createCategory, deleteCategory, getActiveMenuByRestaurant, getCategories, updateCategory, reorderCategories, checkSubscriptionLimit } from '../../services/firestore.js'
+import { createCategory, deleteCategory, getActiveMenuByRestaurant, getCategories, updateCategory, reorderCategories, checkSubscriptionLimit, refreshRestaurantStats } from '../../services/firestore.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Snackbar from '../../components/Snackbar.jsx'
 import CategoryDialog from '../../components/CategoryDialog.jsx'
@@ -140,6 +140,11 @@ export default function Categories({ onCategoriesChange }) {
       showSuccess('Categoría creada exitosamente')
       await load()
       
+      // Update analytics stats
+      refreshRestaurantStats(restaurantId).catch(error => {
+        console.warn('Failed to update analytics:', error)
+      })
+      
       // Dispatch event for dashboard update
       window.dispatchEvent(new CustomEvent('dashboardUpdate'))
     } catch (error) {
@@ -159,6 +164,11 @@ export default function Categories({ onCategoriesChange }) {
       setEditDialog({ isOpen: false, category: null })
       showSuccess('Categoría actualizada exitosamente')
       await load()
+      
+      // Update analytics stats
+      refreshRestaurantStats(restaurantId).catch(error => {
+        console.warn('Failed to update analytics:', error)
+      })
     } catch (error) {
       showError('Error al actualizar la categoría')
     }
@@ -179,6 +189,14 @@ export default function Categories({ onCategoriesChange }) {
         await deleteCategory(deleteDialog.categoryId)
         showSuccess('Categoría eliminada exitosamente')
         await load()
+        
+        // Update analytics stats
+        refreshRestaurantStats(restaurantId).catch(error => {
+          console.warn('Failed to update analytics:', error)
+        })
+        
+        // Dispatch event for dashboard update
+        window.dispatchEvent(new CustomEvent('dashboardUpdate'))
       } catch (error) {
         showError('Error al eliminar la categoría')
       }

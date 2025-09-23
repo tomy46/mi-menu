@@ -15,6 +15,7 @@ import AdminLayout from './pages/admin/AdminLayout.jsx'
 import Dashboard from './pages/admin/Dashboard.jsx'
 import Productos from './pages/admin/Productos.jsx'
 import Menu from './pages/admin/Menu.jsx'
+import Analytics from './pages/admin/Analytics.jsx'
 import Perfil from './pages/admin/Perfil.jsx'
 import Settings from './pages/admin/Settings.jsx'
 import HomeRedirect from './pages/HomeRedirect.jsx'
@@ -55,6 +56,14 @@ function App() {
             element={
               <OwnerGuard>
                 <Menu />
+              </OwnerGuard>
+            }
+          />
+          <Route
+            path="analytics"
+            element={
+              <OwnerGuard>
+                <Analytics />
               </OwnerGuard>
             }
           />

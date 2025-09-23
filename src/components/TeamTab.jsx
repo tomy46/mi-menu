@@ -17,11 +17,9 @@ export default function TeamTab({ restaurant, restaurantId }) {
     setInviting(true)
     try {
       // TODO: Implement team member invitation
-      console.log('Inviting:', inviteEmail, 'to restaurant:', restaurantId)
       setInviteEmail('')
       // showSuccess('Invitación enviada exitosamente')
     } catch (error) {
-      console.error('Error inviting team member:', error)
       // showError('Error al enviar la invitación')
     } finally {
       setInviting(false)
@@ -31,10 +29,8 @@ export default function TeamTab({ restaurant, restaurantId }) {
   const handleRemoveMember = async (memberId) => {
     try {
       // TODO: Implement team member removal
-      console.log('Removing member:', memberId, 'from restaurant:', restaurantId)
       // showSuccess('Miembro removido del equipo')
     } catch (error) {
-      console.error('Error removing team member:', error)
       // showError('Error al remover miembro del equipo')
     }
   }

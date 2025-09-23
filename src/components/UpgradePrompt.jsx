@@ -124,7 +124,6 @@ export default function UpgradePrompt({
             <button
               onClick={() => {
                 // TODO: Implement upgrade flow
-                console.log('Upgrade to', nextPlan)
                 onClose()
               }}
               className="flex-1 px-4 py-2 bg-[#111827] text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"

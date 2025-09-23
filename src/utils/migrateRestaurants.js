@@ -8,7 +8,6 @@ import { SUBSCRIPTION_PLANS, SUBSCRIPTION_STATUS } from '../config/subscriptionP
  */
 export async function migrateRestaurantsToSubscriptions() {
   try {
-    console.log('Starting restaurant migration to subscription model...')
     
     const restaurantsRef = collection(db, 'restaurants')
     const snapshot = await getDocs(restaurantsRef)
@@ -22,8 +21,7 @@ export async function migrateRestaurantsToSubscriptions() {
       
       // Check if restaurant already has subscription fields
       if (data.subscriptionPlan) {
-        console.log(`Skipping ${data.name} - already has subscription plan`)
-        skippedCount++
+         skippedCount++
         return
       }
       
@@ -41,7 +39,6 @@ export async function migrateRestaurantsToSubscriptions() {
       })
     })
     
-    console.log(`Found ${updates.length} restaurants to migrate`)
     
     // Execute updates in batches
     const batchSize = 10
@@ -53,7 +50,6 @@ export async function migrateRestaurantsToSubscriptions() {
           try {
             const restaurantRef = doc(db, 'restaurants', id)
             await updateDoc(restaurantRef, update)
-            console.log(`✓ Migrated: ${name}`)
             migratedCount++
           } catch (error) {
             console.error(`✗ Failed to migrate ${name}:`, error.message)
@@ -68,11 +64,6 @@ export async function migrateRestaurantsToSubscriptions() {
         await new Promise(resolve => setTimeout(resolve, 100))
       }
     }
-    
-    console.log(`Migration completed:`)
-    console.log(`- Migrated: ${migratedCount} restaurants`)
-    console.log(`- Skipped: ${skippedCount} restaurants`)
-    console.log(`- Total processed: ${migratedCount + skippedCount}`)
     
     return {
       success: true,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getItemsByCategory, getItems, updateItem, reorderItems, checkSubscriptionLimit } from '../../services/firestore.js'
+import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getItemsByCategory, getItems, updateItem, reorderItems, checkSubscriptionLimit, refreshRestaurantStats } from '../../services/firestore.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Snackbar from '../../components/Snackbar.jsx'
 import UpgradePrompt from '../../components/UpgradePrompt.jsx'
@@ -138,6 +138,11 @@ export default function Items({ onItemsChange }) {
     await loadItems()
     await loadAllItems()
     
+    // Update analytics stats
+    refreshRestaurantStats(restaurantId).catch(error => {
+      console.warn('Failed to update analytics:', error)
+    })
+    
     // Dispatch event for dashboard update
     window.dispatchEvent(new CustomEvent('dashboardUpdate'))
   }
@@ -163,6 +168,11 @@ export default function Items({ onItemsChange }) {
     showSuccess('Producto actualizado exitosamente')
     await loadItems()
     await loadAllItems()
+    
+    // Update analytics stats
+    refreshRestaurantStats(restaurantId).catch(error => {
+      console.warn('Failed to update analytics:', error)
+    })
   }
 
   function handleDeleteClick(id, name) {
@@ -179,6 +189,14 @@ export default function Items({ onItemsChange }) {
       showSuccess('Producto eliminado exitosamente')
       await loadItems()
       await loadAllItems()
+      
+      // Update analytics stats
+      refreshRestaurantStats(restaurantId).catch(error => {
+        console.warn('Failed to update analytics:', error)
+      })
+      
+      // Dispatch event for dashboard update
+      window.dispatchEvent(new CustomEvent('dashboardUpdate'))
     }
     setDeleteDialog({ isOpen: false, itemId: null, itemName: '' })
   }
@@ -187,6 +205,11 @@ export default function Items({ onItemsChange }) {
     await updateItem(it.id, { available: !it.available })
     await loadItems()
     await loadAllItems()
+    
+    // Update analytics stats
+    refreshRestaurantStats(restaurantId).catch(error => {
+      console.warn('Failed to update analytics:', error)
+    })
   }
 
   // Handle drag end for reordering

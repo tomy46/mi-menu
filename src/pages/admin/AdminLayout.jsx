@@ -17,7 +17,8 @@ import {
   HomeIcon,
   ShoppingBagIcon,
   PaintBrushIcon,
-  UserIcon
+  UserIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline'
 import { getOwnedRestaurants, createRestaurantWithDefaultMenu } from '../../services/firestore.js'
 import RestaurantDialog from '../../components/RestaurantDialog.jsx'
@@ -83,6 +84,7 @@ export default function AdminLayout() {
     { to: `${base}`, label: 'Inicio', icon: HomeIcon },
     { to: `${base}/productos`, label: 'Productos', icon: ShoppingBagIcon },
     { to: `${base}/menu`, label: 'Menú', icon: PaintBrushIcon },
+    { to: `${base}/analytics`, label: 'Métricas', icon: ChartBarIcon },
   ]
 
   function onRestaurantChange(id) {

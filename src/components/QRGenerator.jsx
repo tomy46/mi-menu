@@ -57,7 +57,6 @@ export default function QRGenerator({ isOpen, onClose, restaurantId, restaurantN
 
   const createCompositeImage = async (highRes = false) => {
     return new Promise((resolve, reject) => {
-      console.log('Creating composite image with wrapper:', showWrapper, 'highRes:', highRes)
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
       
@@ -67,8 +66,7 @@ export default function QRGenerator({ isOpen, onClose, restaurantId, restaurantN
       const canvasSize = baseSize * scale
       canvas.width = canvasSize
       canvas.height = canvasSize
-      console.log('Canvas size:', canvasSize, 'scale:', scale)
-      
+     
       // Configurar contexto para alta calidad
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = 'high'
@@ -93,58 +91,47 @@ export default function QRGenerator({ isOpen, onClose, restaurantId, restaurantN
       // Cargar y dibujar QR
       const qrImg = new Image()
       qrImg.onload = () => {
-        console.log('QR image loaded successfully')
         const qrSize = 200 * scale
         const qrX = (canvas.width - qrSize) / 2
         const qrY = showWrapper ? 70 * scale : 50 * scale
         
         ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize)
-        console.log('QR drawn at position:', qrX, qrY, 'size:', qrSize)
         
         if (showWrapper) {
           // Dibujar logo o nombre del restaurante
           if (showLogo && restaurantLogo) {
-            console.log('Loading restaurant logo...')
             const logoImg = new Image()
             logoImg.crossOrigin = 'anonymous'
             logoImg.onload = () => {
-              console.log('Logo loaded successfully')
               const logoSize = 48 * scale
               const logoX = (canvas.width - logoSize) / 2
               const logoY = qrY + qrSize + 20 * scale
               
               ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize)
               const result = canvas.toDataURL('image/png')
-              console.log('Final image created with logo, length:', result.length)
               resolve(result)
             }
             logoImg.onerror = (error) => {
-              console.log('Logo failed to load, using restaurant name instead:', error)
-              // Si falla el logo, dibujar nombre
+               // Si falla el logo, dibujar nombre
               ctx.fillStyle = '#111827'
               ctx.font = `bold ${16 * scale}px Arial`
               ctx.textAlign = 'center'
               ctx.fillText(restaurantName, canvas.width / 2, qrY + qrSize + 40 * scale)
               const result = canvas.toDataURL('image/png')
-              console.log('Final image created with name, length:', result.length)
               resolve(result)
             }
             logoImg.src = restaurantLogo
           } else {
-            console.log('Drawing restaurant name...')
             // Dibujar nombre del restaurante
             ctx.fillStyle = '#111827'
             ctx.font = `bold ${16 * scale}px Arial`
             ctx.textAlign = 'center'
             ctx.fillText(restaurantName, canvas.width / 2, qrY + qrSize + 40 * scale)
             const result = canvas.toDataURL('image/png')
-            console.log('Final image created with name only, length:', result.length)
             resolve(result)
           }
         } else {
-          console.log('No wrapper, returning QR only')
           const result = canvas.toDataURL('image/png')
-          console.log('Final image created QR only, length:', result.length)
           resolve(result)
         }
       }
@@ -158,16 +145,12 @@ export default function QRGenerator({ isOpen, onClose, restaurantId, restaurantN
 
   const downloadImage = async (format) => {
     if (!qrDataUrl) {
-      console.error('No QR data available')
       return
     }
     
-    console.log('Starting download for format:', format)
     setGenerating(true)
     try {
-      console.log('Creating composite image...')
       const compositeImageData = await createCompositeImage()
-      console.log('Composite image created, length:', compositeImageData.length)
       
       if (format === 'jpg') {
         // Convertir a JPG
