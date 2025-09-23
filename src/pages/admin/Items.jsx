@@ -25,6 +25,26 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
+// Helper functions for price formatting
+function formatPriceDisplay(value, currency = 'ARS') {
+  if (!value || value === '' || isNaN(value)) return ''
+  const numValue = parseFloat(value)
+  if (numValue === 0) return ''
+  
+  return new Intl.NumberFormat('es-AR', {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(numValue)
+}
+
+function parsePriceInput(formattedValue) {
+  if (!formattedValue) return ''
+  // Remove thousand separators and replace comma with dot for decimal
+  const cleaned = formattedValue.replace(/\./g, '').replace(',', '.')
+  return cleaned
+}
+
 export default function Items({ onItemsChange }) {
   const { restaurantId } = useParams()
   const [menuId, setMenuId] = useState(null)
@@ -32,7 +52,7 @@ export default function Items({ onItemsChange }) {
   const [categoryId, setCategoryId] = useState('')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ name: '', description: '', price: 0, currency: 'ARS', available: true, order: 0 })
+  const [form, setForm] = useState({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0 })
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, itemId: null, itemName: '' })
@@ -112,8 +132,9 @@ export default function Items({ onItemsChange }) {
       showError('El nombre del producto es requerido')
       return
     }
-    if (Number(form.price) < 0) {
-      showError('El precio debe ser mayor o igual a 0')
+    const numericPrice = parseFloat(parsePriceInput(form.price))
+    if (!numericPrice || numericPrice <= 0) {
+      showError('El precio debe ser mayor a 0')
       return
     }
 
@@ -131,8 +152,8 @@ export default function Items({ onItemsChange }) {
       return
     }
 
-    await createItem({ ...form, categoryId, price: Number(form.price) || 0, order: Number(form.order) || 0 })
-    setForm({ name: '', description: '', price: 0, currency: 'ARS', available: true, order: 0 })
+    await createItem({ ...form, categoryId, price: numericPrice, order: Number(form.order) || 0 })
+    setForm({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0 })
     setShowCreateDialog(false)
     showSuccess('Producto creado exitosamente')
     await loadItems()
@@ -152,8 +173,8 @@ export default function Items({ onItemsChange }) {
       showError('El nombre del producto es requerido')
       return
     }
-    if (Number(it.price) < 0) {
-      showError('El precio debe ser mayor o igual a 0')
+    if (Number(it.price) <= 0) {
+      showError('El precio debe ser mayor a 0')
       return
     }
     await updateItem(it.id, {
@@ -336,7 +357,7 @@ export default function Items({ onItemsChange }) {
           setForm={setForm}
           onClose={() => {
             setShowCreateDialog(false)
-            setForm({ name: '', description: '', price: 0, currency: 'ARS', available: true, order: 0 })
+            setForm({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0 })
           }}
           onSave={onCreate}
         />
@@ -466,14 +487,38 @@ function SortableItemCard({ item, onEdit }) {
 function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete }) {
   const [name, setName] = useState(item.name)
   const [description, setDescription] = useState(item.description || '')
-  const [price, setPrice] = useState(item.price || 0)
+  const [price, setPrice] = useState(formatPriceDisplay(item.price || 0))
   const [currency, setCurrency] = useState(item.currency || 'ARS')
   const [available, setAvailable] = useState(item.available !== false)
   const [order, setOrder] = useState(item.order || 0)
+  const [saving, setSaving] = useState(false)
 
-  function handleSave() {
-    onSave({ ...item, name, description, price: Number(price), currency, available, order: Number(order) })
-    onClose()
+  const handlePriceChange = (e) => {
+    const inputValue = e.target.value
+    // Allow only numbers, dots, and commas
+    if (inputValue === '' || /^[0-9.,]*$/.test(inputValue)) {
+      setPrice(inputValue)
+    }
+  }
+
+  const handlePriceBlur = () => {
+    const numericValue = parsePriceInput(price)
+    if (numericValue && !isNaN(numericValue)) {
+      setPrice(formatPriceDisplay(numericValue))
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const numericPrice = parseFloat(parsePriceInput(price))
+      await onSave({ ...item, name, description, price: numericPrice || 0, currency, available, order: Number(order) })
+      onClose()
+    } catch (error) {
+      console.error('Error saving item:', error)
+    } finally {
+      setSaving(false)
+    }
   }
 
   function handleDelete() {
@@ -506,7 +551,6 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
         <div className="p-6 space-y-4">
           {/* General section */}
           <div>
-            <h3 className="text-sm font-medium text-gray-700 mb-3">General</h3>
             <div className="space-y-3">
               <div>
                 <label className="text-sm text-gray-600 block mb-1">Nombre*</label>
@@ -541,10 +585,11 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
                 <label className="text-sm text-gray-600 block mb-1">Precio</label>
                 <input
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  type="number"
-                  step="0.01"
+                  type="text"
                   value={price}
-                  onChange={(e) => setPrice(e.target.value)}
+                  onChange={handlePriceChange}
+                  onBlur={handlePriceBlur}
+                  placeholder="0,00"
                 />
               </div>
               <div>
@@ -565,15 +610,6 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-3">Configuración</h3>
             <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-600 block mb-1">Orden</label>
-                <input
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                  type="number"
-                  value={order}
-                  onChange={(e) => setOrder(e.target.value)}
-                />
-              </div>
               
               <div className="flex items-center justify-between">
                 <div>
@@ -601,15 +637,21 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
         <div className="flex gap-3 p-6 border-t border-gray-200">
           <button
             onClick={handleDelete}
-            className="flex-1 bg-red-50 text-red-700 rounded-lg py-2 text-sm font-medium hover:bg-red-100 transition-colors"
+            disabled={saving}
+            className="flex-1 bg-red-50 text-red-700 rounded-lg py-2 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Eliminar
           </button>
           <button
             onClick={handleSave}
-            className="flex-1 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
+            disabled={saving}
+            className="flex-1 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            Guardar
+            {saving ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              'Guardar'
+            )}
           </button>
         </div>
         </div>
@@ -620,9 +662,33 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
 
 // Create item modal component
 function CreateItemModal({ form, setForm, onClose, onSave }) {
-  function handleSubmit(e) {
+  const [saving, setSaving] = useState(false)
+  
+  const handlePriceChange = (e) => {
+    const inputValue = e.target.value
+    // Allow only numbers, dots, and commas
+    if (inputValue === '' || /^[0-9.,]*$/.test(inputValue)) {
+      setForm(f => ({ ...f, price: inputValue }))
+    }
+  }
+
+  const handlePriceBlur = () => {
+    const numericValue = parsePriceInput(form.price)
+    if (numericValue && !isNaN(numericValue)) {
+      setForm(f => ({ ...f, price: formatPriceDisplay(numericValue) }))
+    }
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault()
-    onSave(e)
+    setSaving(true)
+    try {
+      await onSave(e)
+    } catch (error) {
+      console.error('Error creating item:', error)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -651,8 +717,7 @@ function CreateItemModal({ form, setForm, onClose, onSave }) {
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
             {/* General section */}
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">General</h3>
-              <div className="space-y-3">
+             <div className="space-y-3">
                 <div>
                   <label className="text-sm text-gray-600 block mb-1">Nombre*</label>
                   <input
@@ -681,17 +746,17 @@ function CreateItemModal({ form, setForm, onClose, onSave }) {
 
             {/* Pricing section */}
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Precio</h3>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-600 block mb-1">Precio</label>
                   <input
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    type="number"
-                    step="0.01"
+                    type="text"
                     value={form.price}
-                    onChange={(e) => setForm(f => ({ ...f, price: e.target.value }))}
-                    placeholder="0.00"
+                    onChange={handlePriceChange}
+                    onBlur={handlePriceBlur}
+                    placeholder="0,00"
+                    required
                   />
                 </div>
                 <div>
@@ -710,18 +775,7 @@ function CreateItemModal({ form, setForm, onClose, onSave }) {
 
             {/* Configuration section */}
             <div>
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Configuración</h3>
               <div className="space-y-3">
-                <div>
-                  <label className="text-sm text-gray-600 block mb-1">Orden</label>
-                  <input
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-                    type="number"
-                    value={form.order}
-                    onChange={(e) => setForm(f => ({ ...f, order: e.target.value }))}
-                    placeholder="0"
-                  />
-                </div>
                 
                 <div className="flex items-center justify-between">
                   <div>
@@ -750,15 +804,21 @@ function CreateItemModal({ form, setForm, onClose, onSave }) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 text-[#111827] border border-[#111827] bg-white rounded-lg py-2 text-sm font-medium hover:bg-gray-50 transition-colors"
+                disabled={saving}
+                className="flex-1 text-[#111827] border border-[#111827] bg-white rounded-lg py-2 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="flex-1 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors"
+                disabled={saving}
+                className="flex-1 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
-                Crear ítem
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  'Crear ítem'
+                )}
               </button>
             </div>
           </form>
