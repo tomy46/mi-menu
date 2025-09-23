@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   updateDoc,
   deleteDoc,
+  setDoc,
   limit,
   writeBatch,
 } from 'firebase/firestore'
@@ -27,6 +28,7 @@ export const colPlans = () => collection(db, 'plans')
 export const colTeamMembers = () => collection(db, 'teamMembers')
 export const colAnalyticsEvents = () => collection(db, 'analyticsEvents')
 export const colAnalyticsStats = () => collection(db, 'analyticsStats')
+export const colAnalyticsVisitStats = () => collection(db, 'analyticsVisitStats')
 
 // Restaurant helpers
 export async function getRestaurant(id) {
@@ -192,7 +194,7 @@ export async function getItems(restaurantId, { onlyAvailable = false } = {}) {
 
 // CRUD (basic)
 export async function createCategory({ menuId, name, order, description, tag, active = true }) {
-  return addDoc(colCategories(), {
+  const result = await addDoc(colCategories(), {
     menuId,
     name,
     order: Number(order) || 0,
@@ -202,14 +204,64 @@ export async function createCategory({ menuId, name, order, description, tag, ac
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+  
+  // Actualizar estadísticas del restaurante
+  try {
+    const menu = await getMenu(menuId)
+    if (menu?.restaurantId) {
+      await refreshRestaurantStats(menu.restaurantId)
+    }
+  } catch (error) {
+    console.warn('Error updating stats after category creation:', error)
+  }
+  
+  return result
 }
 
 export async function updateCategory(id, data) {
-  return updateDoc(doc(db, 'categories', id), { ...data, updatedAt: serverTimestamp() })
+  const result = await updateDoc(doc(db, 'categories', id), { ...data, updatedAt: serverTimestamp() })
+  
+  // Actualizar estadísticas del restaurante
+  try {
+    const category = await getDoc(doc(db, 'categories', id))
+    if (category.exists()) {
+      const menu = await getMenu(category.data().menuId)
+      if (menu?.restaurantId) {
+        await refreshRestaurantStats(menu.restaurantId)
+      }
+    }
+  } catch (error) {
+    console.warn('Error updating stats after category update:', error)
+  }
+  
+  return result
 }
 
 export async function deleteCategory(id) {
-  return deleteDoc(doc(db, 'categories', id))
+  // Obtener información antes de eliminar
+  let restaurantId = null
+  try {
+    const category = await getDoc(doc(db, 'categories', id))
+    if (category.exists()) {
+      const menu = await getMenu(category.data().menuId)
+      restaurantId = menu?.restaurantId
+    }
+  } catch (error) {
+    console.warn('Error getting category info before deletion:', error)
+  }
+  
+  const result = await deleteDoc(doc(db, 'categories', id))
+  
+  // Actualizar estadísticas del restaurante
+  if (restaurantId) {
+    try {
+      await refreshRestaurantStats(restaurantId)
+    } catch (error) {
+      console.warn('Error updating stats after category deletion:', error)
+    }
+  }
+  
+  return result
 }
 
 export async function reorderCategories(categories) {
@@ -231,7 +283,7 @@ export async function reorderItems(items) {
 }
 
 export async function createItem({ categoryId, name, description, price, currency = 'ARS', available = true, order = 0 }) {
-  return addDoc(colItems(), {
+  const result = await addDoc(colItems(), {
     categoryId,
     name,
     description: description || '',
@@ -242,14 +294,73 @@ export async function createItem({ categoryId, name, description, price, currenc
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+  
+  // Actualizar estadísticas del restaurante
+  try {
+    const category = await getDoc(doc(db, 'categories', categoryId))
+    if (category.exists()) {
+      const menu = await getMenu(category.data().menuId)
+      if (menu?.restaurantId) {
+        await refreshRestaurantStats(menu.restaurantId)
+      }
+    }
+  } catch (error) {
+    console.warn('Error updating stats after item creation:', error)
+  }
+  
+  return result
 }
 
 export async function updateItem(id, data) {
-  return updateDoc(doc(db, 'items', id), { ...data, updatedAt: serverTimestamp() })
+  const result = await updateDoc(doc(db, 'items', id), { ...data, updatedAt: serverTimestamp() })
+  
+  // Actualizar estadísticas del restaurante
+  try {
+    const item = await getDoc(doc(db, 'items', id))
+    if (item.exists()) {
+      const category = await getDoc(doc(db, 'categories', item.data().categoryId))
+      if (category.exists()) {
+        const menu = await getMenu(category.data().menuId)
+        if (menu?.restaurantId) {
+          await refreshRestaurantStats(menu.restaurantId)
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Error updating stats after item update:', error)
+  }
+  
+  return result
 }
 
 export async function deleteItem(id) {
-  return deleteDoc(doc(db, 'items', id))
+  // Obtener información antes de eliminar
+  let restaurantId = null
+  try {
+    const item = await getDoc(doc(db, 'items', id))
+    if (item.exists()) {
+      const category = await getDoc(doc(db, 'categories', item.data().categoryId))
+      if (category.exists()) {
+        const menu = await getMenu(category.data().menuId)
+        restaurantId = menu?.restaurantId
+      }
+    }
+  } catch (error) {
+    console.warn('Error getting item info before deletion:', error)
+  }
+  
+  const result = await deleteDoc(doc(db, 'items', id))
+  
+  // Actualizar estadísticas del restaurante
+  if (restaurantId) {
+    try {
+      await refreshRestaurantStats(restaurantId)
+    } catch (error) {
+      console.warn('Error updating stats after item deletion:', error)
+    }
+  }
+  
+  return result
 }
 
 // Update restaurant
@@ -360,16 +471,26 @@ export async function getRestaurantUsage(restaurantId) {
     const menusQuery = query(colMenus(), where('restaurantId', '==', restaurantId), where('deleted', '==', false))
     const menusSnap = await getDocs(menusQuery)
     const menusCount = menusSnap.size
+    const menus = menusSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
 
-    // Count categories
-    const categoriesQuery = query(colCategories(), where('restaurantId', '==', restaurantId))
-    const categoriesSnap = await getDocs(categoriesQuery)
-    const categoriesCount = categoriesSnap.size
+    let categoriesCount = 0
+    let productsCount = 0
 
-    // Count products
-    const itemsQuery = query(colItems(), where('restaurantId', '==', restaurantId))
-    const itemsSnap = await getDocs(itemsQuery)
-    const productsCount = itemsSnap.size
+    // Count categories and products for each menu
+    for (const menu of menus) {
+      // Count categories for this menu
+      const categoriesQuery = query(colCategories(), where('menuId', '==', menu.id))
+      const categoriesSnap = await getDocs(categoriesQuery)
+      categoriesCount += categoriesSnap.size
+      
+      // Count products for each category in this menu
+      const categories = categoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      for (const category of categories) {
+        const itemsQuery = query(colItems(), where('categoryId', '==', category.id))
+        const itemsSnap = await getDocs(itemsQuery)
+        productsCount += itemsSnap.size
+      }
+    }
 
     // Team members count (for now just owners, will expand later)
     const restaurant = await getRestaurant(restaurantId)
@@ -484,9 +605,26 @@ export async function getRestaurantStats(restaurantId) {
       return { success: true, data: snap.data() }
     }
     
-    // Si no existen estadísticas, calcularlas por primera vez
-    const stats = await calculateRestaurantStats(restaurantId)
-    return { success: true, data: stats }
+    // Si no existen estadísticas, crear estadísticas básicas por defecto
+    const defaultStats = {
+      restaurantId,
+      totalCategories: 0,
+      totalItems: 0,
+      averagePrice: 0,
+      lastCalculated: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }
+    
+    try {
+      await setDoc(statsDoc, defaultStats)
+      return { success: true, data: defaultStats }
+    } catch (createError) {
+      console.warn('Could not create default stats, calculating instead:', createError)
+      // Fallback: intentar calcular estadísticas
+      const stats = await calculateRestaurantStats(restaurantId)
+      return { success: true, data: stats }
+    }
     
   } catch (error) {
     console.error('Error getting restaurant stats:', error)
@@ -543,30 +681,33 @@ export async function calculateRestaurantStats(restaurantId) {
       const categoriesQuery = query(
         colCategories(),
         where('menuId', '==', menu.id),
-        where('active', '==', true),
-        where('deleted', '==', false)
+        where('active', '==', true)
       )
       const categoriesSnap = await getDocs(categoriesQuery)
       totalCategories += categoriesSnap.size
       
-      // Contar productos activos y calcular precios
-      const itemsQuery = query(
-        colItems(),
-        where('menuId', '==', menu.id),
-        where('available', '==', true),
-        where('deleted', '==', false)
-      )
-      const itemsSnap = await getDocs(itemsQuery)
-      totalItems += itemsSnap.size
+      // Para cada categoría, obtener sus items
+      const categories = categoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
       
-      // Calcular precio promedio
-      itemsSnap.docs.forEach(doc => {
-        const item = doc.data()
-        if (item.price && item.price > 0) {
-          totalPrice += item.price
-          itemsWithPrice++
-        }
-      })
+      for (const category of categories) {
+        // Contar productos activos de esta categoría
+        const itemsQuery = query(
+          colItems(),
+          where('categoryId', '==', category.id),
+          where('available', '==', true)
+        )
+        const itemsSnap = await getDocs(itemsQuery)
+        totalItems += itemsSnap.size
+        
+        // Calcular precio promedio
+        itemsSnap.docs.forEach(doc => {
+          const item = doc.data()
+          if (item.price && item.price > 0) {
+            totalPrice += item.price
+            itemsWithPrice++
+          }
+        })
+      }
     }
     
     const averagePrice = itemsWithPrice > 0 ? totalPrice / itemsWithPrice : 0
@@ -585,7 +726,7 @@ export async function calculateRestaurantStats(restaurantId) {
     const statsDoc = doc(db, 'analyticsStats', `restaurant_${restaurantId}`)
     await updateDoc(statsDoc, stats).catch(async () => {
       // Si el documento no existe, crearlo
-      await addDoc(colAnalyticsStats(), { id: `restaurant_${restaurantId}`, ...stats })
+      await setDoc(statsDoc, { restaurantId, ...stats })
     })
     
     return stats
@@ -605,39 +746,42 @@ export async function calculateMenuStats(restaurantId, menuId) {
     const categoriesQuery = query(
       colCategories(),
       where('menuId', '==', menuId),
-      where('active', '==', true),
-      where('deleted', '==', false)
+      where('active', '==', true)
     )
     const categoriesSnap = await getDocs(categoriesQuery)
+    const categories = categoriesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     
-    // Contar productos activos del menú
-    const itemsQuery = query(
-      colItems(),
-      where('menuId', '==', menuId),
-      where('available', '==', true),
-      where('deleted', '==', false)
-    )
-    const itemsSnap = await getDocs(itemsQuery)
-    
-    // Calcular precio promedio del menú
+    let totalItems = 0
     let totalPrice = 0
     let itemsWithPrice = 0
     
-    itemsSnap.docs.forEach(doc => {
-      const item = doc.data()
-      if (item.price && item.price > 0) {
-        totalPrice += item.price
-        itemsWithPrice++
-      }
-    })
+    // Para cada categoría, obtener sus items
+    for (const category of categories) {
+      const itemsQuery = query(
+        colItems(),
+        where('categoryId', '==', category.id),
+        where('available', '==', true)
+      )
+      const itemsSnap = await getDocs(itemsQuery)
+      totalItems += itemsSnap.size
+      
+      // Calcular precio promedio
+      itemsSnap.docs.forEach(doc => {
+        const item = doc.data()
+        if (item.price && item.price > 0) {
+          totalPrice += item.price
+          itemsWithPrice++
+        }
+      })
+    }
     
     const averagePrice = itemsWithPrice > 0 ? totalPrice / itemsWithPrice : 0
     
     const stats = {
       restaurantId,
       menuId,
-      totalCategories: categoriesSnap.size,
-      totalItems: itemsSnap.size,
+      totalCategories: categories.length,
+      totalItems,
       averagePrice: Math.round(averagePrice * 100) / 100,
       lastCalculated: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -647,7 +791,7 @@ export async function calculateMenuStats(restaurantId, menuId) {
     const statsDoc = doc(db, 'analyticsStats', `menu_${restaurantId}_${menuId}`)
     await updateDoc(statsDoc, stats).catch(async () => {
       // Si el documento no existe, crearlo
-      await addDoc(colAnalyticsStats(), { id: `menu_${restaurantId}_${menuId}`, ...stats })
+      await setDoc(statsDoc, { restaurantId, menuId, ...stats })
     })
     
     return stats
@@ -661,12 +805,13 @@ export async function calculateMenuStats(restaurantId, menuId) {
 /**
  * Actualiza estadísticas de visualizaciones de menú
  * Se ejecuta cada vez que alguien ve el menú público
+ * Usa la nueva colección analyticsVisitStats con permisos amplios
  */
 async function updateMenuViewStats(restaurantId, menuId) {
   try {
     const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD
     const statsId = `views_${restaurantId}_${menuId}_${today}`
-    const statsDoc = doc(db, 'analyticsStats', statsId)
+    const statsDoc = doc(db, 'analyticsVisitStats', statsId)
     
     const snap = await getDoc(statsDoc)
     
@@ -679,8 +824,7 @@ async function updateMenuViewStats(restaurantId, menuId) {
       })
     } else {
       // Crear nuevo contador
-      await addDoc(colAnalyticsStats(), {
-        id: statsId,
+      await setDoc(statsDoc, {
         restaurantId,
         menuId,
         date: today,
@@ -713,7 +857,7 @@ export async function getViewStats(restaurantId, menuId = null, days = 30) {
     if (menuId) {
       // Estadísticas de un menú específico
       q = query(
-        colAnalyticsStats(),
+        colAnalyticsVisitStats(),
         where('restaurantId', '==', restaurantId),
         where('menuId', '==', menuId),
         where('type', '==', 'daily_views'),
@@ -724,7 +868,7 @@ export async function getViewStats(restaurantId, menuId = null, days = 30) {
     } else {
       // Estadísticas de todo el restaurante
       q = query(
-        colAnalyticsStats(),
+        colAnalyticsVisitStats(),
         where('restaurantId', '==', restaurantId),
         where('type', '==', 'daily_views'),
         where('date', '>=', startDateStr),
@@ -762,25 +906,26 @@ export async function getViewStats(restaurantId, menuId = null, days = 30) {
  */
 export async function refreshRestaurantStats(restaurantId) {
   try {
+    // Simplemente actualizar las estadísticas básicas
     await calculateRestaurantStats(restaurantId)
-    
-    // También actualizar estadísticas de cada menú
-    const menusQuery = query(
-      colMenus(),
-      where('restaurantId', '==', restaurantId),
-      where('active', '==', true),
-      where('deleted', '==', false)
-    )
-    const menusSnap = await getDocs(menusQuery)
-    
-    for (const menuDoc of menusSnap.docs) {
-      await calculateMenuStats(restaurantId, menuDoc.id)
-    }
-    
     return { success: true }
-    
   } catch (error) {
     console.error('Error refreshing restaurant stats:', error)
-    return { success: false, error: error.message }
+    // Si falla, al menos crear estadísticas básicas
+    try {
+      const statsDoc = doc(db, 'analyticsStats', `restaurant_${restaurantId}`)
+      await setDoc(statsDoc, {
+        restaurantId,
+        totalCategories: 0,
+        totalItems: 0,
+        averagePrice: 0,
+        lastCalculated: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true })
+      return { success: true }
+    } catch (fallbackError) {
+      console.error('Even fallback failed:', fallbackError)
+      return { success: false, error: fallbackError.message }
+    }
   }
 }

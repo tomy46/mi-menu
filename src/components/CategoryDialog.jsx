@@ -88,6 +88,7 @@ export default function CategoryDialog({
               onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent"
               placeholder="Nombre de la categoría"
+              spellCheck={true}
               required
               autoFocus
             />
@@ -103,6 +104,7 @@ export default function CategoryDialog({
               onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent resize-none"
               placeholder="Descripción se mostrara debajo del titulo del producto.  (opcional)"
+              spellCheck={true}
               rows={3}
             />
           </div>
@@ -119,6 +121,7 @@ export default function CategoryDialog({
                 onChange={(e) => setForm(f => ({ ...f, tag: e.target.value }))}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent"
                 placeholder="Etiqueta (opcional)"
+                spellCheck={true}
               />
             </div>
           )}

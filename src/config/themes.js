@@ -14,7 +14,7 @@ export const MENU_THEMES = {
       text: {
         primary: '#4A3728', // Marrón oscuro para todo el texto
         secondary: '#4A3728', // Mismo color para consistencia
-        muted: '#6B5B73' // Marrón medio para elementos secundarios
+        muted: '#4A3728' // Marrón medio para elementos secundarios
       },
       border: '#E8D5B7' // Beige para bordes
     },

@@ -515,6 +515,7 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Nombre del ítem"
+                  spellCheck={true}
                 />
               </div>
               
@@ -526,6 +527,7 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Descripción del ítem"
+                  spellCheck={true}
                 />
               </div>
             </div>
@@ -658,6 +660,7 @@ function CreateItemModal({ form, setForm, onClose, onSave }) {
                     value={form.name}
                     onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="Nombre del ítem"
+                    spellCheck={true}
                     required
                   />
                 </div>
@@ -670,6 +673,7 @@ function CreateItemModal({ form, setForm, onClose, onSave }) {
                     value={form.description}
                     onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
                     placeholder="Descripción del ítem"
+                    spellCheck={true}
                   />
                 </div>
               </div>

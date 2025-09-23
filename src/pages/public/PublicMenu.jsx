@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { getActiveMenuByRestaurant, getCategories, getItemsByCategory, getRestaurant, trackEvent } from '../../services/firestore.js'
 import { getTheme, getGoogleFontsUrl, getCategoryIcon, DEFAULT_THEME } from '../../config/themes.js'
-import { ANALYTICS_EVENTS } from '../../config/analytics.js'
+import { ANALYTICS_EVENTS, generateDeviceFingerprint, isUniqueVisit } from '../../config/analytics.js'
 import MenuUnavailable from '../../components/MenuUnavailable.jsx'
 
 export default function PublicMenu() {
@@ -13,6 +13,7 @@ export default function PublicMenu() {
   const [itemsByCat, setItemsByCat] = useState({})
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
+  const hasTrackedView = useRef(false) // Para evitar tracking duplicado
   
   // Get theme configuration
   const theme = getTheme(restaurant?.theme || DEFAULT_THEME)
@@ -131,6 +132,7 @@ export default function PublicMenu() {
 
   useEffect(() => {
     let active = true
+    hasTrackedView.current = false // Reset tracking flag para nuevo restaurante
     async function load() {
       setLoading(true)
       try {
@@ -147,19 +149,44 @@ export default function PublicMenu() {
         const m = await getActiveMenuByRestaurant(restaurantId)
         if (active) setMenu(m)
         if (m) {
-          // Track menu view event (optimized for high frequency writes)
-          trackEvent({
-            type: ANALYTICS_EVENTS.MENU_VIEW,
-            restaurantId: restaurantId,
-            menuId: m.id,
-            userAgent: navigator.userAgent,
-            timestamp: new Date().toISOString(),
-            sessionId: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-          }).catch(error => {
-            // Silent fail - analytics shouldn't break the user experience
-            console.warn('Analytics tracking failed:', error)
-          })
+          // Track menu view event solo una vez por sesión
+          if (!hasTrackedView.current) {
+            hasTrackedView.current = true
+            const deviceId = generateDeviceFingerprint()
+            const isUnique = isUniqueVisit(restaurantId)
+            const sessionId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+            
+            // Track visita general (siempre)
+            trackEvent({
+              type: ANALYTICS_EVENTS.MENU_VIEW,
+              restaurantId: restaurantId,
+              menuId: m.id,
+              userAgent: navigator.userAgent,
+              deviceId: deviceId,
+              isUniqueVisit: isUnique,
+              timestamp: new Date().toISOString(),
+              sessionId: sessionId
+            }).catch(error => {
+              console.warn('Analytics tracking failed:', error)
+            })
+            
+            // Track visita única (solo si es primera vez del dispositivo)
+            if (isUnique) {
+              trackEvent({
+                type: ANALYTICS_EVENTS.UNIQUE_VISIT,
+                restaurantId: restaurantId,
+                menuId: m.id,
+                userAgent: navigator.userAgent,
+                deviceId: deviceId,
+                timestamp: new Date().toISOString(),
+                sessionId: sessionId
+              }).catch(error => {
+                console.warn('Unique visit tracking failed:', error)
+              })
+            }
+          }
           
+          // Cargar categorías e items siempre que haya menú
           const cats = await getCategories(m.id)
           if (active) setCategories(cats)
           const itemsMap = {}
