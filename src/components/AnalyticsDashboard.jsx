@@ -76,7 +76,7 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
       <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg p-8 text-center border border-blue-200">
         <ChartBarIcon className="w-16 h-16 text-blue-400 mx-auto mb-4" />
         <h3 className="text-xl font-semibold text-gray-900 mb-2">
-          Analytics Disponibles en Plan Pro
+          Métricas Disponibles en Plan Pro
         </h3>
         <p className="text-gray-600 mb-6 max-w-md mx-auto">
           Obtén insights detallados sobre tu menú, precios promedio, visitas y más con nuestros planes Pro y Enterprise.
@@ -131,7 +131,7 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
     <div className="space-y-6">
       {/* Period Selector */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Analytics</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Métricas</h2>
         <div className="flex items-center gap-2">
           <CalendarIcon className="w-5 h-5 text-gray-400" />
           <select

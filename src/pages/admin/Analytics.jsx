@@ -55,7 +55,7 @@ export default function Analytics() {
           <ChartBarIcon className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Métricas</h1>
           <p className="text-gray-600">
             Estadísticas y métricas de tu restaurante
           </p>
