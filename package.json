@@ -21,6 +21,7 @@
     "@heroicons/react": "^2.2.0",
     "@uploadcare/react-uploader": "^1.10.2",
     "firebase": "^12.3.0",
+    "framer-motion": "^12.23.19",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.3",
     "qrcode": "^1.5.4",

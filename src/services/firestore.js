@@ -464,6 +464,45 @@ export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = tr
   return { restaurantId: restaurantRef.id, menuId: menuRef.id }
 }
 
+// Create restaurant with wizard data (name, category, product)
+export async function createRestaurantFromWizard({ 
+  uid, 
+  storeName, 
+  category, 
+  productName, 
+  productPrice 
+}) {
+  // Create restaurant with default menu
+  const { restaurantId, menuId } = await createRestaurantWithDefaultMenu({
+    uid,
+    name: storeName,
+    isPublic: false // Start as private until user makes it public
+  })
+
+  // Create the category
+  const categoryResult = await createCategory({
+    menuId,
+    name: category,
+    order: 0,
+    description: '',
+    tag: '',
+    active: true
+  })
+
+  // Create the first product
+  await createItem({
+    categoryId: categoryResult.id,
+    name: productName,
+    description: '',
+    price: productPrice,
+    currency: 'ARS',
+    available: true,
+    order: 0
+  })
+
+  return { restaurantId, menuId }
+}
+
 // Subscription and limits functions
 export async function getRestaurantUsage(restaurantId) {
   try {

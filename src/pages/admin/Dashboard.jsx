@@ -113,30 +113,6 @@ export default function Dashboard() {
   const completedSteps = steps.filter(step => step.completed).length
   const progress = (completedSteps / steps.length) * 100
 
-  const stats = [
-    {
-      name: 'Categorías',
-      value: categories.length,
-      icon: Squares2X2Icon,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50'
-    },
-    {
-      name: 'Productos',
-      value: items.length,
-      icon: ShoppingBagIcon,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50'
-    },
-    {
-      name: 'Progreso',
-      value: `${Math.round(progress)}%`,
-      icon: CheckCircleIcon,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50'
-    }
-  ]
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -214,22 +190,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-4">
-        {stats.map((stat) => (
-          <div key={stat.name} className="bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center">
-              <div className={`flex-shrink-0 w-10 h-10 rounded-lg ${stat.bgColor} flex items-center justify-center`}>
-                <stat.icon className={`w-5 h-5 ${stat.color}`} />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500">{stat.name}</p>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
 
     </div>
   )

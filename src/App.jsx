@@ -7,7 +7,8 @@ import SubdomainHandler from './components/SubdomainHandler.jsx'
 import Login from './pages/auth/Login.jsx'
 import Register from './pages/auth/Register.jsx'
 
-// Public page
+// Public pages
+import LandingPage from './pages/LandingPage.jsx'
 import PublicMenu from './pages/public/PublicMenu.jsx'
 
 // Admin pages
@@ -25,7 +26,12 @@ function App() {
   return (
     <SubdomainHandler>
       <Routes>
+      {/* Landing Page */}
+      <Route path="/landing" element={<LandingPage />} />
+      
       {/* Auth */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="/auth/login" element={<Login />} />
       <Route path="/auth/register" element={<Register />} />
 

@@ -30,6 +30,6 @@ export default function HomeRedirect() {
   }, [user, loading, navigate])
 
   if (loading || checking) return <div className="p-4">Cargando...</div>
-  if (!user) return <Navigate to="/auth/login" replace />
+  if (!user) return <Navigate to="/landing" replace />
   return null
 }
