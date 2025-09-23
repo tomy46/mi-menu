@@ -24,7 +24,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
-export default function Categories() {
+export default function Categories({ onCategoriesChange }) {
   const { restaurantId } = useParams()
   const [menuId, setMenuId] = useState(null)
   const [categories, setCategories] = useState([])
@@ -53,6 +53,12 @@ export default function Categories() {
       if (m) setMenuId(m.id)
       const cats = m ? await getCategories(m.id) : []
       setCategories(cats)
+      // Notify parent component about categories change
+      if (onCategoriesChange) {
+        onCategoriesChange(cats)
+      }
+      // Notify dashboard to update
+      window.dispatchEvent(new CustomEvent('dashboardUpdate'))
     } finally {
       setLoading(false)
     }
@@ -72,6 +78,12 @@ export default function Categories() {
       
       const newCategories = arrayMove(categories, oldIndex, newIndex)
       setCategories(newCategories)
+      // Notify parent component about categories change
+      if (onCategoriesChange) {
+        onCategoriesChange(newCategories)
+      }
+      // Notify dashboard to update
+      window.dispatchEvent(new CustomEvent('dashboardUpdate'))
       
       try {
         await reorderCategories(newCategories)

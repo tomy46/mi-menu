@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { getActiveMenuByRestaurant, getCategories, getItemsByCategory, getRestaurant } from '../../services/firestore.js'
 import { getTheme, getGoogleFontsUrl, getCategoryIcon, DEFAULT_THEME } from '../../config/themes.js'
+import MenuUnavailable from '../../components/MenuUnavailable.jsx'
 
 export default function PublicMenu() {
   const { restaurantId } = useParams()
@@ -163,6 +164,46 @@ export default function PublicMenu() {
     }
   }, [restaurantId])
 
+  // Update favicon when restaurant logo changes
+  useEffect(() => {
+    if (restaurant?.logo) {
+      // Create a new favicon link element
+      const favicon = document.createElement('link')
+      favicon.rel = 'icon'
+      favicon.type = 'image/x-icon'
+      favicon.href = restaurant.logo
+      
+      // Remove existing favicon
+      const existingFavicon = document.querySelector('link[rel="icon"]')
+      if (existingFavicon) {
+        document.head.removeChild(existingFavicon)
+      }
+      
+      // Add new favicon
+      document.head.appendChild(favicon)
+      
+      // Also update the title to include restaurant name
+      document.title = `${restaurant.name} - Menú Digital`
+    } else {
+      // Use default favicon if no logo
+      document.title = `${restaurant?.name || 'Restaurante'} - Menú Digital`
+    }
+    
+    // Cleanup function to restore default favicon when component unmounts
+    return () => {
+      const favicon = document.querySelector('link[rel="icon"]')
+      if (favicon && restaurant?.logo) {
+        document.head.removeChild(favicon)
+        // Restore default favicon
+        const defaultFavicon = document.createElement('link')
+        defaultFavicon.rel = 'icon'
+        defaultFavicon.type = 'image/svg+xml'
+        defaultFavicon.href = '/vite.svg'
+        document.head.appendChild(defaultFavicon)
+      }
+    }
+  }, [restaurant?.logo, restaurant?.name])
+
   const filtered = useMemo(() => {
     if (!q) return itemsByCat
     const term = q.toLowerCase()
@@ -204,6 +245,15 @@ export default function PublicMenu() {
     </div>
   )
 
+  // Show unavailable message if no active menu found
+  if (!menu) return (
+    <MenuUnavailable 
+      theme={restaurant?.theme || DEFAULT_THEME}
+      menuTitle={restaurant?.name ? `Menú de ${restaurant.name}` : 'Menú'}
+      message="Este menú no está disponible en este momento. Por favor, inténtalo más tarde."
+    />
+  )
+
   return (
     <>
       {/* Load Google Fonts */}
@@ -220,6 +270,20 @@ export default function PublicMenu() {
         >
           <div className="relative max-w-4xl mx-auto px-6 py-6">
             <div className={restaurant?.theme === 'cupido' ? 'text-center' : 'text-left'}>
+              {/* Logo */}
+              {restaurant.logo && (
+                <div className={`mb-4 ${restaurant?.theme === 'cupido' ? 'flex justify-center' : ''}`}>
+                  <img
+                    src={restaurant.logo}
+                    alt={`Logo de ${restaurant.name}`}
+                    className="w-16 h-16 md:w-20 md:h-20 object-cover rounded-lg shadow-lg transition-all duration-500 ease-in-out"
+                    style={{
+                      border: `2px solid ${restaurant?.theme === 'cupido' ? theme.colors.text.white : theme.colors.primary}`
+                    }}
+                  />
+                </div>
+              )}
+              
               <div 
                 className="text-4xl md:text-5xl font-bold mb-3 transition-all duration-700 ease-out"
                 style={{ 

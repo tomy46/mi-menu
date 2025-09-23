@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { 
   PaintBrushIcon,
-  ShareIcon,
-  EyeIcon
+  EyeIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline'
-import { getRestaurant, updateRestaurant } from '../../services/firestore.js'
+import { getRestaurant, updateRestaurant, getActiveMenuByRestaurant, toggleMenuActive, createMenu } from '../../services/firestore.js'
 import { getTheme } from '../../config/themes.js'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
 import Snackbar from '../../components/Snackbar.jsx'
+import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 
 const themes = [
   { id: 'elegant', name: 'Elegante', description: 'Diseño clásico y sofisticado' },
@@ -18,39 +19,38 @@ const themes = [
   { id: 'cupido', name: 'Cupido', description: 'Romántico y delicado' }
 ]
 
-const socialPlatforms = [
-  { id: 'instagram', name: 'Instagram', placeholder: '@turestaurante' },
-  { id: 'facebook', name: 'Facebook', placeholder: 'facebook.com/turestaurante' },
-  { id: 'whatsapp', name: 'WhatsApp', placeholder: '+54 9 11 1234-5678' },
-  { id: 'website', name: 'Sitio Web', placeholder: 'https://turestaurante.com' }
-]
 
 export default function Menu() {
   const { restaurantId } = useParams()
   const [restaurant, setRestaurant] = useState(null)
+  const [menu, setMenu] = useState(null)
   const [selectedTheme, setSelectedTheme] = useState('elegant')
-  const [socialMedia, setSocialMedia] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
   const { snackbar, showSuccess, showError } = useSnackbar()
 
   useEffect(() => {
-    async function loadRestaurant() {
+    async function loadData() {
       try {
-        const data = await getRestaurant(restaurantId)
-        setRestaurant(data)
-        setSelectedTheme(data.theme || 'elegant')
-        setSocialMedia(data.socialMedia || {})
+        const [restaurantData, menuData] = await Promise.all([
+          getRestaurant(restaurantId),
+          getActiveMenuByRestaurant(restaurantId)
+        ])
+        
+        setRestaurant(restaurantData)
+        setMenu(menuData)
+        setSelectedTheme(restaurantData.theme || 'elegant')
       } catch (error) {
-        console.error('Error loading restaurant:', error)
-        showError('Error al cargar la información del restaurante')
+        console.error('Error loading data:', error)
+        showError('Error al cargar la información')
       } finally {
         setLoading(false)
       }
     }
 
     if (restaurantId) {
-      loadRestaurant()
+      loadData()
     }
   }, [restaurantId])
 
@@ -59,14 +59,6 @@ export default function Menu() {
     await saveChanges({ theme: themeId })
   }
 
-  const handleSocialMediaChange = (platform, value) => {
-    const newSocialMedia = { ...socialMedia, [platform]: value }
-    setSocialMedia(newSocialMedia)
-  }
-
-  const saveSocialMedia = async () => {
-    await saveChanges({ socialMedia })
-  }
 
   const saveChanges = async (updates) => {
     setSaving(true)
@@ -76,6 +68,64 @@ export default function Menu() {
     } catch (error) {
       console.error('Error saving changes:', error)
       showError('Error al guardar los cambios')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleToggleMenu = () => {
+    if (menu?.active) {
+      setShowDeactivateDialog(true)
+    } else {
+      handleConfirmToggle()
+    }
+  }
+
+  const handleConfirmToggle = async () => {
+    if (!menu) return
+    
+    setSaving(true)
+    try {
+      await toggleMenuActive(menu.id, !menu.active)
+      setMenu({ ...menu, active: !menu.active })
+      showSuccess(menu.active ? 'Menú desactivado exitosamente' : 'Menú activado exitosamente')
+    } catch (error) {
+      console.error('Error toggling menu:', error)
+      showError('Error al cambiar el estado del menú')
+    } finally {
+      setSaving(false)
+      setShowDeactivateDialog(false)
+    }
+  }
+
+  const handleCreateDefaultMenu = async () => {
+    setSaving(true)
+    try {
+      const menuRef = await createMenu({
+        restaurantId,
+        title: 'Carta Principal',
+        type: 'main',
+        description: 'Menú principal del restaurante',
+        active: true,
+        order: 0
+      })
+      
+      const newMenu = {
+        id: menuRef.id,
+        restaurantId,
+        title: 'Carta Principal',
+        type: 'main',
+        description: 'Menú principal del restaurante',
+        active: true,
+        deleted: false,
+        order: 0
+      }
+      
+      setMenu(newMenu)
+      showSuccess('Menú creado y activado exitosamente')
+    } catch (error) {
+      console.error('Error creating menu:', error)
+      showError('Error al crear el menú')
     } finally {
       setSaving(false)
     }
@@ -129,7 +179,7 @@ export default function Menu() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Menú</h1>
         <p className="text-gray-600 mt-1">
-          Personaliza el diseño y las redes sociales de tu menú público
+          Personaliza el diseño de tu menú público y controla su disponibilidad
         </p>
       </div>
 
@@ -185,44 +235,81 @@ export default function Menu() {
         </div>
       </div>
 
-      {/* Social Media */}
+      {/* Menu Status */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center gap-2 mb-4">
-          <ShareIcon className="w-5 h-5 text-gray-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Redes Sociales</h2>
+          <ExclamationTriangleIcon className="w-5 h-5 text-gray-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Estado del Menú</h2>
         </div>
         
         <p className="text-sm text-gray-600 mb-6">
-          Agrega tus redes sociales para que los clientes puedan encontrarte fácilmente
+          Controla la disponibilidad de tu menú para los clientes
         </p>
 
-        <div className="space-y-4">
-          {socialPlatforms.map((platform) => (
-            <div key={platform.id}>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                {platform.name}
-              </label>
-              <input
-                type="text"
-                value={socialMedia[platform.id] || ''}
-                onChange={(e) => handleSocialMediaChange(platform.id, e.target.value)}
-                placeholder={platform.placeholder}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#111827] focus:border-transparent"
-              />
+        {menu ? (
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+            <div>
+              <h3 className="text-sm font-medium text-gray-900">
+                {menu.active ? 'Menú Activo' : 'Menú Desactivado'}
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {menu.active 
+                  ? 'Tu menú está visible para los clientes' 
+                  : 'Tu menú no está disponible públicamente'
+                }
+              </p>
             </div>
-          ))}
-        </div>
+            <div className="flex items-center">
+              <button
+                onClick={handleToggleMenu}
+                disabled={saving}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  menu.active ? 'bg-[#111827]' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    menu.active ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-blue-900">
+                  Sin Menú Configurado
+                </h3>
+                <p className="text-sm text-blue-800 mt-1">
+                  Tu restaurante necesita un menú para estar disponible públicamente
+                </p>
+              </div>
+              <button
+                onClick={handleCreateDefaultMenu}
+                disabled={saving}
+                className="px-4 py-2 bg-[#111827] text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                {saving ? 'Creando...' : 'Crear Menú'}
+              </button>
+            </div>
+          </div>
+        )}
 
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={saveSocialMedia}
-            disabled={saving}
-            className="px-4 py-2 bg-[#111827] text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Guardando...' : 'Guardar Redes Sociales'}
-          </button>
-        </div>
+        {menu && !menu.active && (
+          <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+            <div className="flex items-center gap-2">
+              <ExclamationTriangleIcon className="w-4 h-4 text-amber-600" />
+              <span className="text-sm font-medium text-amber-900">Menú desactivado</span>
+            </div>
+            <p className="text-sm text-amber-800 mt-1">
+              Los clientes verán un mensaje de "menú no disponible" cuando visiten tu enlace público.
+            </p>
+          </div>
+        )}
       </div>
+
 
       {/* Tips */}
       <div className="bg-green-50 rounded-lg border border-green-200 p-6">
@@ -231,8 +318,8 @@ export default function Menu() {
           <li>• El tema elegante es perfecto para restaurantes tradicionales</li>
           <li>• El tema moderno funciona bien para cafeterías y lugares casuales</li>
           <li>• El tema fresco es ideal para restaurantes saludables o veganos</li>
-          <li>• Asegúrate de que tus redes sociales estén actualizadas</li>
-          <li>• Usa el mismo nombre de usuario en todas las plataformas</li>
+          <li>• El tema cupido es romántico, ideal para cenas especiales</li>
+          <li>• Puedes cambiar el tema en cualquier momento</li>
         </ul>
       </div>
 
@@ -241,6 +328,17 @@ export default function Menu() {
         message={snackbar.message}
         type={snackbar.type}
         duration={snackbar.duration}
+      />
+
+      <ConfirmDialog
+        isOpen={showDeactivateDialog}
+        onClose={() => setShowDeactivateDialog(false)}
+        onConfirm={handleConfirmToggle}
+        title="¿Desactivar menú?"
+        description="Al desactivar el menú, los clientes verán un mensaje de 'menú no disponible' cuando visiten tu enlace público. Puedes reactivarlo en cualquier momento."
+        confirmText="Desactivar"
+        cancelText="Cancelar"
+        variant="danger"
       />
     </div>
   )

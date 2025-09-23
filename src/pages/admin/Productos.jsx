@@ -108,8 +108,16 @@ export default function Productos() {
 
       {/* Tab Content */}
       <div className="mt-6">
-        {activeTab === 'categorias' && <Categories />}
-        {activeTab === 'productos' && <Items />}
+        {activeTab === 'categorias' && (
+          <Categories 
+            onCategoriesChange={(newCategories) => setCategories(newCategories)}
+          />
+        )}
+        {activeTab === 'productos' && (
+          <Items 
+            onItemsChange={(newItems) => setItems(newItems)}
+          />
+        )}
       </div>
     </div>
   )

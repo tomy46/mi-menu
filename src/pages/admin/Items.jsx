@@ -1,11 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getItemsByCategory, updateItem } from '../../services/firestore.js'
+import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getItemsByCategory, getItems, updateItem, reorderItems } from '../../services/firestore.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Snackbar from '../../components/Snackbar.jsx'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable'
+import {
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
-export default function Items() {
+export default function Items({ onItemsChange }) {
   const { restaurantId } = useParams()
   const [menuId, setMenuId] = useState(null)
   const [categories, setCategories] = useState([])
@@ -17,6 +35,18 @@ export default function Items() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, itemId: null, itemName: '' })
   const { snackbar, showError, showSuccess } = useSnackbar()
+
+  // Drag and drop sensors with better mobile support
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement before dragging starts
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   async function load() {
     setLoading(true)
@@ -37,8 +67,23 @@ export default function Items() {
     setItems(list)
   }
 
+  // Load all items for the restaurant to notify parent component
+  async function loadAllItems() {
+    if (onItemsChange) {
+      try {
+        const allItems = await getItems(restaurantId)
+        onItemsChange(allItems)
+        // Notify dashboard to update
+        window.dispatchEvent(new CustomEvent('dashboardUpdate'))
+      } catch (error) {
+        console.error('Error loading all items:', error)
+      }
+    }
+  }
+
   useEffect(() => {
     load()
+    loadAllItems()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId])
 
@@ -62,6 +107,7 @@ export default function Items() {
     setShowCreateDialog(false)
     showSuccess('Producto creado exitosamente')
     await loadItems()
+    await loadAllItems()
   }
 
   async function onSave(it) {
@@ -84,6 +130,7 @@ export default function Items() {
     setEditingItem(null)
     showSuccess('Producto actualizado exitosamente')
     await loadItems()
+    await loadAllItems()
   }
 
   function handleDeleteClick(id, name) {
@@ -99,6 +146,7 @@ export default function Items() {
       await deleteItem(deleteDialog.itemId)
       showSuccess('Producto eliminado exitosamente')
       await loadItems()
+      await loadAllItems()
     }
     setDeleteDialog({ isOpen: false, itemId: null, itemName: '' })
   }
@@ -106,6 +154,31 @@ export default function Items() {
   async function onToggleAvailable(it) {
     await updateItem(it.id, { available: !it.available })
     await loadItems()
+    await loadAllItems()
+  }
+
+  // Handle drag end for reordering
+  async function handleDragEnd(event) {
+    const { active, over } = event
+
+    if (active.id !== over?.id) {
+      const oldIndex = items.findIndex(item => item.id === active.id)
+      const newIndex = items.findIndex(item => item.id === over.id)
+      
+      const newItems = arrayMove(items, oldIndex, newIndex)
+      setItems(newItems)
+      
+      try {
+        await reorderItems(newItems)
+        showSuccess('Orden actualizado exitosamente')
+        await loadAllItems()
+      } catch (error) {
+        showError('Error al actualizar el orden')
+        // Revert on error
+        await loadItems()
+        await loadAllItems()
+      }
+    }
   }
 
   return (
@@ -115,6 +188,14 @@ export default function Items() {
           <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
           <p className="text-gray-600">Gestioná los productos de tu menú</p>
         </div>
+        {categoryId && (
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            className="px-4 py-2 text-sm font-medium text-white bg-[#111827] rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            Añadir Producto
+          </button>
+        )}
       </div>
 
       {loading && <div className="text-center py-8">Cargando...</div>}
@@ -135,44 +216,35 @@ export default function Items() {
           </div>
 
           {categoryId ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {/* Create new item button */}
-              <div className="bg-white rounded-lg border-2 border-dashed border-gray-300 p-6 flex flex-col items-center justify-center min-h-[200px] hover:border-gray-400 transition-colors">
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-                  <span className="text-2xl">➕</span>
-                </div>
-                <h3 className="font-semibold text-gray-900 mb-2">Agregar nuevo ítem</h3>
-                <p className="text-sm text-gray-600 text-center mb-4">Creá un nuevo producto para esta categoría</p>
-                <button
-                  onClick={() => setShowCreateDialog(true)}
-                  className="px-4 py-2 border-2 border-[#111827] text-[#111827] rounded-lg text-sm font-medium hover:bg-[#111827] hover:text-white transition-colors"
-                >
-                  Crear ítem
-                </button>
-              </div>
-
-              {/* Existing items */}
-              {items.map((it) => (
-                <ItemCard 
-                  key={it.id} 
-                  item={it} 
-                  onEdit={() => setEditingItem(it)}
-                  onToggleAvailable={() => onToggleAvailable(it)}
-                  onDelete={() => handleDeleteClick(it.id, it.name)}
-                />
-              ))}
-
-              {/* Empty state */}
-              {items.length === 0 && (
-                <div className="md:col-span-2 lg:col-span-3 text-center py-12">
+            <>
+              {items.length === 0 ? (
+                <div className="text-center py-12">
                   <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-2xl">🍽️</span>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay ítems</h3>
-                  <p className="text-gray-600">Agregá tu primer ítem a esta categoría</p>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay productos</h3>
+                  <p className="text-gray-600">Creá tu primer producto para esta categoría</p>
                 </div>
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext items={items.map(i => i.id)} strategy={rectSortingStrategy}>
+                    <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+                      {items.map((item) => (
+                        <SortableItemCard
+                          key={item.id}
+                          item={item}
+                          onEdit={() => setEditingItem(item)}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               )}
-            </div>
+            </>
           ) : (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -240,36 +312,91 @@ export default function Items() {
   )
 }
 
-// Simple item card component
-function ItemCard({ item, onEdit }) {
+// Sortable Item Card Component
+function SortableItemCard({ item, onEdit }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  const handleCardClick = (e) => {
+    // Only trigger edit if not dragging
+    if (!isDragging) {
+      onEdit(item)
+    }
+  }
+
   return (
-    <div 
-      className="bg-white rounded-lg border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-shadow"
-      onClick={onEdit}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`bg-white rounded-lg border border-gray-200 p-4 select-none ${
+        isDragging 
+          ? 'shadow-lg cursor-grabbing' 
+          : 'hover:shadow-md hover:border-gray-300 cursor-pointer touch-manipulation'
+      } transition-all`}
+      onClick={handleCardClick}
+      {...attributes}
+      {...listeners}
     >
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-          <span className="text-xl">🍽️</span>
-        </div>
-        <div className="flex-1">
-          <h3 className="font-semibold text-gray-900">{item.name}</h3>
-          {item.available === false && (
-            <span className="inline-block text-xs bg-red-100 text-red-700 rounded-full px-2 py-1 mt-1">
-              No disponible
-            </span>
-          )}
+      {/* Product content */}
+      <div className="mb-3">
+        <div className="flex items-start gap-3">
+          {/* Drag indicator for mobile */}
+          <div className="flex flex-col gap-0.5 mt-1 opacity-30">
+            <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+            <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1 flex-wrap">
+              <h3 className={`font-medium text-sm truncate ${
+                item.available !== false ? 'text-gray-900' : 'text-gray-500'
+              }`}>
+                {item.name}
+              </h3>
+            </div>
+            <div className="flex items-center gap-1 mt-1">
+              <span className={`px-1.5 py-0.5 text-xs rounded-full ${
+                item.available !== false 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {item.available !== false ? 'Disponible' : 'No disponible'}
+              </span>
+              <span className="font-semibold text-xs text-gray-900">
+                {new Intl.NumberFormat('es-AR', { style: 'currency', currency: item.currency || 'ARS' }).format(item.price || 0)}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
-      
+
+      {/* Description */}
       {item.description && (
-        <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.description}</p>
+        <p className="text-xs text-gray-600 overflow-hidden" style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical'
+        }}>
+          {item.description}
+        </p>
       )}
-      
-      <div className="flex justify-between items-center">
-        <span className="font-semibold text-lg text-gray-900">
-          {new Intl.NumberFormat('es-AR', { style: 'currency', currency: item.currency || 'ARS' }).format(item.price || 0)}
-        </span>
-        <span className="text-xs text-gray-500">Orden: {item.order || 0}</span>
+
+      {/* Visual indicator for interaction */}
+      <div className="mt-3 pt-2 border-t border-gray-100">
+        <p className="text-xs text-gray-400 text-center">Toca para editar • Mantén presionado para reordenar</p>
       </div>
     </div>
   )
@@ -449,7 +576,7 @@ function CreateItemModal({ form, setForm, onClose, onSave }) {
         <div className="relative z-10 bg-white rounded-lg shadow-xl max-w-md w-full transform transition-all">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Crear nuevo ítem</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Anadir producto</h2>
             <button 
               onClick={onClose}
               className="p-1 rounded-md hover:bg-gray-100"

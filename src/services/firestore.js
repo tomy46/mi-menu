@@ -105,7 +105,40 @@ export function generateSlug(name) {
 
 // Query helpers
 export async function getActiveMenuByRestaurant(restaurantId) {
-  const q = query(colMenus(), where('restaurantId', '==', restaurantId), where('active', '==', true))
+  const q = query(colMenus(), where('restaurantId', '==', restaurantId), where('active', '==', true), where('deleted', '==', false))
+  const snaps = await getDocs(q)
+  const docs = snaps.docs.map((d) => ({ id: d.id, ...d.data() }))
+  return docs[0] || null
+}
+
+// Get all menus for a restaurant (including inactive, excluding deleted)
+export async function getMenusByRestaurant(restaurantId, { includeInactive = true } = {}) {
+  let q = query(colMenus(), where('restaurantId', '==', restaurantId), where('deleted', '==', false), orderBy('order', 'asc'))
+  
+  const snaps = await getDocs(q)
+  let menus = snaps.docs.map((d) => ({ id: d.id, ...d.data() }))
+  
+  if (!includeInactive) {
+    menus = menus.filter(menu => menu.active === true)
+  }
+  
+  return menus
+}
+
+// Get specific menu by ID
+export async function getMenu(menuId) {
+  const snap = await getDoc(doc(db, 'menus', menuId))
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null
+}
+
+// Get menu by restaurant and type
+export async function getMenuByType(restaurantId, menuType) {
+  const q = query(
+    colMenus(), 
+    where('restaurantId', '==', restaurantId), 
+    where('type', '==', menuType),
+    where('deleted', '==', false)
+  )
   const snaps = await getDocs(q)
   const docs = snaps.docs.map((d) => ({ id: d.id, ...d.data() }))
   return docs[0] || null
@@ -181,6 +214,15 @@ export async function reorderCategories(categories) {
   return batch.commit()
 }
 
+export async function reorderItems(items) {
+  const batch = writeBatch(db)
+  items.forEach((item, index) => {
+    const itemRef = doc(db, 'items', item.id)
+    batch.update(itemRef, { order: index, updatedAt: serverTimestamp() })
+  })
+  return batch.commit()
+}
+
 export async function createItem({ categoryId, name, description, price, currency = 'ARS', available = true, order = 0 }) {
   return addDoc(colItems(), {
     categoryId,
@@ -212,6 +254,52 @@ export async function updateRestaurant(id, data) {
   return updateDoc(doc(db, 'restaurants', id), { ...data, updatedAt: serverTimestamp() })
 }
 
+// Menu CRUD operations
+export async function createMenu({ restaurantId, title, type = 'main', description = '', active = true, order = 0 }) {
+  return addDoc(colMenus(), {
+    restaurantId,
+    title,
+    type, // 'main', 'lunch', 'dinner', 'drinks', 'desserts', etc.
+    description,
+    active,
+    deleted: false,
+    order: Number(order) || 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateMenu(id, data) {
+  return updateDoc(doc(db, 'menus', id), { ...data, updatedAt: serverTimestamp() })
+}
+
+// Soft delete menu
+export async function deleteMenu(id) {
+  return updateDoc(doc(db, 'menus', id), { 
+    deleted: true, 
+    active: false, // Also deactivate when deleting
+    updatedAt: serverTimestamp() 
+  })
+}
+
+// Toggle menu active status
+export async function toggleMenuActive(id, active) {
+  return updateDoc(doc(db, 'menus', id), { 
+    active: !!active, 
+    updatedAt: serverTimestamp() 
+  })
+}
+
+// Reorder menus
+export async function reorderMenus(menus) {
+  const batch = writeBatch(db)
+  menus.forEach((menu, index) => {
+    const menuRef = doc(db, 'menus', menu.id)
+    batch.update(menuRef, { order: index, updatedAt: serverTimestamp() })
+  })
+  return batch.commit()
+}
+
 // Create restaurant + default menu
 export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = true }) {
   const restaurantName = name || 'Heladeria Pistacho'
@@ -232,13 +320,23 @@ export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = tr
       { title: '', url: '' },
       { title: '', url: '' }
     ],
+    logo: '', // Default empty logo
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+  
+  // Create default main menu
   const menuRef = await addDoc(colMenus(), {
     restaurantId: restaurantRef.id,
     title: 'Carta Principal',
+    type: 'main',
+    description: 'Menú principal del restaurante',
     active: true,
+    deleted: false,
+    order: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   })
+  
   return { restaurantId: restaurantRef.id, menuId: menuRef.id }
 }

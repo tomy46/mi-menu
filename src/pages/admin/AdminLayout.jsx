@@ -295,15 +295,19 @@ export default function AdminLayout() {
               <div className="relative" ref={accountRef}>
                 <button
                   onClick={() => setMenuOpen((v) => !v)}
-                  className="w-9 h-9 rounded-full bg-[#111827] flex items-center justify-center hover:bg-gray-800 transition-colors"
+                  className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                    currentRestaurant?.logo 
+                      ? 'hover:ring-2 hover:ring-gray-300' 
+                      : 'bg-[#111827] hover:bg-gray-800'
+                  }`}
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
                 >
-                  {currentRestaurant?.imageUrl ? (
+                  {currentRestaurant?.logo ? (
                     <img 
-                      src={currentRestaurant.imageUrl} 
-                      alt={currentRestaurant.name}
-                      className="w-9 h-9 rounded-full object-cover"
+                      src={currentRestaurant.logo} 
+                      alt={`Logo de ${currentRestaurant.name}`}
+                      className="w-9 h-9 rounded-full object-cover border border-gray-200"
                     />
                   ) : (
                     <span className="text-sm font-semibold text-white">
