@@ -21,6 +21,7 @@ import Perfil from './pages/admin/Perfil.jsx'
 import Settings from './pages/admin/Settings.jsx'
 import HomeRedirect from './pages/HomeRedirect.jsx'
 import Welcome from './pages/Welcome.jsx'
+import WelcomeWizard from './pages/WelcomeWizard.jsx'
 
 function App() {
   return (
@@ -95,6 +96,7 @@ function App() {
       {/* Default route: redirect based on session/ownership */}
       <Route path="/" element={<HomeRedirect />} />
       <Route path="/welcome" element={<Welcome />} />
+      <Route path="/welcome-wizard" element={<WelcomeWizard />} />
 
       {/* 404 */}
       <Route path="*" element={<div className="p-4">Página no encontrada</div>} />
