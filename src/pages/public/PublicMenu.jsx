@@ -4,6 +4,7 @@ import { getActiveMenuByRestaurant, getCategories, getItemsByCategory, getRestau
 import { getTheme, getGoogleFontsUrl, getCategoryIcon, DEFAULT_THEME } from '../../config/themes.js'
 import { ANALYTICS_EVENTS, generateDeviceFingerprint, isUniqueVisit } from '../../config/analytics.js'
 import MenuUnavailable from '../../components/MenuUnavailable.jsx'
+import { DietaryRestrictionsDisplay } from '../../components/DietaryRestrictionsSelector.jsx'
 
 export default function PublicMenu() {
   const { restaurantId } = useParams()
@@ -137,7 +138,7 @@ export default function PublicMenu() {
             {/* Descripción */}
             {item.description && (
               <p 
-                className="text-sm leading-relaxed transition-all duration-300 ease-in-out"
+                className="text-sm leading-relaxed transition-all duration-300 ease-in-out mb-2"
                 style={{ 
                   color: theme.colors.text.muted, 
                   fontFamily: theme.fonts.secondary,
@@ -146,6 +147,14 @@ export default function PublicMenu() {
               >
                 {item.description}
               </p>
+            )}
+            
+            {/* Restricciones Alimenticias */}
+            {item.dietaryRestrictions && item.dietaryRestrictions.length > 0 && (
+              <DietaryRestrictionsDisplay 
+                restrictions={item.dietaryRestrictions} 
+                className="mt-2"
+              />
             )}
           </div>
         ) : (
@@ -192,7 +201,7 @@ export default function PublicMenu() {
               
               {item.description && (
                 <p 
-                  className="text-sm leading-relaxed transition-all duration-300 ease-in-out"
+                  className="text-sm leading-relaxed transition-all duration-300 ease-in-out mb-2"
                   style={{ 
                     color: theme.colors.text.muted, 
                     fontFamily: theme.fonts.secondary,
@@ -201,6 +210,14 @@ export default function PublicMenu() {
                 >
                   {item.description}
                 </p>
+              )}
+              
+              {/* Restricciones Alimenticias */}
+              {item.dietaryRestrictions && item.dietaryRestrictions.length > 0 && (
+                <DietaryRestrictionsDisplay 
+                  restrictions={item.dietaryRestrictions} 
+                  className="mt-2"
+                />
               )}
             </div>
           </div>

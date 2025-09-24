@@ -59,7 +59,7 @@ service cloud.firestore {
 
       allow read: if isRestaurantPublic(itemRestaurantIdFromExisting()) || isOwnerOfRestaurant(itemRestaurantIdFromExisting());
       allow create: if isOwnerOfRestaurant(itemRestaurantIdFromNew())
-        && request.resource.data.keys().hasOnly(['categoryId','name','description','price','currency','available','order','isMultiLanguage','supportedLanguages','createdAt','updatedAt']);
+        && request.resource.data.keys().hasOnly(['categoryId','name','description','price','currency','available','order','dietaryRestrictions','isMultiLanguage','supportedLanguages','createdAt','updatedAt']);
       allow update, delete: if isOwnerOfRestaurant(itemRestaurantIdFromExisting());
     }
 

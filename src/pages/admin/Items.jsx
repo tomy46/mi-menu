@@ -4,6 +4,7 @@ import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getIt
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Snackbar from '../../components/Snackbar.jsx'
 import UpgradePrompt from '../../components/UpgradePrompt.jsx'
+import DietaryRestrictionsSelector, { DietaryRestrictionsDisplay } from '../../components/DietaryRestrictionsSelector.jsx'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
 import { getRestaurant } from '../../services/firestore.js'
 import {
@@ -52,7 +53,7 @@ export default function Items({ onItemsChange }) {
   const [categoryId, setCategoryId] = useState('')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0 })
+  const [form, setForm] = useState({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0, dietaryRestrictions: [] })
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, itemId: null, itemName: '' })
@@ -154,7 +155,7 @@ export default function Items({ onItemsChange }) {
     }
 
     await createItem({ ...form, categoryId, price: numericPrice, order: Number(form.order) || 0 })
-    setForm({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0 })
+    setForm({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0, dietaryRestrictions: [] })
     setShowCreateDialog(false)
     showSuccess('Producto creado exitosamente')
     await loadItems()
@@ -185,6 +186,7 @@ export default function Items({ onItemsChange }) {
       currency: it.currency || 'ARS',
       available: !!it.available,
       order: Number(it.order) || 0,
+      dietaryRestrictions: Array.isArray(it.dietaryRestrictions) ? it.dietaryRestrictions : [],
     })
     setEditingItem(null)
     showSuccess('Producto actualizado exitosamente')
@@ -375,7 +377,7 @@ export default function Items({ onItemsChange }) {
           setForm={setForm}
           onClose={() => {
             setShowCreateDialog(false)
-            setForm({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0 })
+            setForm({ name: '', description: '', price: '', currency: 'ARS', available: true, order: 0, dietaryRestrictions: [] })
           }}
           onSave={onCreate}
         />
@@ -489,13 +491,21 @@ function SortableItemCard({ item, onEdit }) {
 
       {/* Description */}
       {item.description && (
-        <p className="text-xs text-gray-600 overflow-hidden" style={{
+        <p className="text-xs text-gray-600 overflow-hidden mb-2" style={{
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical'
         }}>
           {item.description}
         </p>
+      )}
+
+      {/* Dietary Restrictions */}
+      {item.dietaryRestrictions && item.dietaryRestrictions.length > 0 && (
+        <DietaryRestrictionsDisplay 
+          restrictions={item.dietaryRestrictions} 
+          className="mt-2"
+        />
       )}
 
     </div>
@@ -510,6 +520,7 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete, i
   const [currency, setCurrency] = useState(item.currency || 'ARS')
   const [available, setAvailable] = useState(item.available !== false)
   const [order, setOrder] = useState(item.order || 0)
+  const [dietaryRestrictions, setDietaryRestrictions] = useState(item.dietaryRestrictions || [])
   const [saving, setSaving] = useState(false)
 
   const handlePriceChange = (e) => {
@@ -531,7 +542,7 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete, i
     setSaving(true)
     try {
       const numericPrice = parseFloat(parsePriceInput(price))
-      await onSave({ ...item, name, description, price: numericPrice || 0, currency, available, order: Number(order) })
+      await onSave({ ...item, name, description, price: numericPrice || 0, currency, available, order: Number(order), dietaryRestrictions })
       onClose()
     } catch (error) {
       console.error('Error saving item:', error)
@@ -647,6 +658,15 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete, i
                     }`}
                   />
                 </button>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">Restricciones Alimenticias</label>
+                <p className="text-xs text-gray-500 mb-3">Selecciona las restricciones alimenticias que aplican a este producto</p>
+                <DietaryRestrictionsSelector
+                  selectedRestrictions={dietaryRestrictions}
+                  onChange={setDietaryRestrictions}
+                />
               </div>
             </div>
           </div>
@@ -818,6 +838,15 @@ function CreateItemModal({ form, setForm, onClose, onSave }) {
                       }`}
                     />
                   </button>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-2">Restricciones Alimenticias</label>
+                  <p className="text-xs text-gray-500 mb-3">Selecciona las restricciones alimenticias que aplican a este producto</p>
+                  <DietaryRestrictionsSelector
+                    selectedRestrictions={form.dietaryRestrictions || []}
+                    onChange={(restrictions) => setForm(f => ({ ...f, dietaryRestrictions: restrictions }))}
+                  />
                 </div>
               </div>
             </div>

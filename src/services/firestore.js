@@ -328,7 +328,7 @@ export async function reorderItems(items) {
   return batch.commit()
 }
 
-export async function createItem({ categoryId, name, description, price, currency = 'ARS', available = true, order = 0 }) {
+export async function createItem({ categoryId, name, description, price, currency = 'ARS', available = true, order = 0, dietaryRestrictions = [] }) {
   const result = await addDoc(colItems(), {
     categoryId,
     name,
@@ -337,6 +337,7 @@ export async function createItem({ categoryId, name, description, price, currenc
     currency,
     available,
     order: Number(order) || 0,
+    dietaryRestrictions: Array.isArray(dietaryRestrictions) ? dietaryRestrictions : [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
