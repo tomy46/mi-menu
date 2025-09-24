@@ -69,6 +69,42 @@ export const MENU_THEMES = {
       card: '0 4px 12px rgba(185, 28, 28, 0.1)',
       hover: '0 8px 24px rgba(185, 28, 28, 0.15)'
     }
+  },
+
+  colombia: {
+    id: 'colombia',
+    name: 'Colombia',
+    description: 'Diseño inspirado en los colores cálidos de Colombia',
+    preview: '🇨🇴',
+    colors: {
+      primary: '#2A1C0C', // Marrón oscuro para textos
+      secondary: '#2A1C0C', // Mismo color para consistencia
+      accent: '#EDD2B1', // Beige cálido
+      background: '#EDD2B1', // Fondo beige cálido
+      surface: 'transparent', // Transparente para productos
+      text: {
+        primary: '#2A1C0C', // Marrón oscuro para todo el texto
+        secondary: '#2A1C0C', // Mismo color para consistencia
+        muted: '#2A1C0C', // Mismo color para elementos secundarios
+        white: '#FFFFFF' // Blanco para contraste si es necesario
+      },
+      border: '#D4B896' // Beige más oscuro para bordes
+    },
+    fonts: {
+      primary: 'Poppins', // Poppins para títulos
+      secondary: 'Poppins', // Poppins para texto
+      accent: 'Poppins' // Poppins para elementos decorativos
+    },
+    spacing: {
+      section: '3rem',
+      item: '1.5rem',
+      padding: '1.5rem'
+    },
+    borderRadius: '8px',
+    shadows: {
+      card: '0 2px 8px rgba(42, 28, 12, 0.1)',
+      hover: '0 4px 16px rgba(42, 28, 12, 0.15)'
+    }
   }
 }
 

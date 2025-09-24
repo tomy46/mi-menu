@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore'
 import { SUBSCRIPTION_PLANS, SUBSCRIPTION_STATUS } from '../config/subscriptionPlans'
 import { ANALYTICS_EVENTS, STATS_TYPES, AGGREGATION_CONFIG } from '../config/analytics'
+import { createMultiLanguageField, DEFAULT_LANGUAGE, migrateToMultiLanguage } from '../config/languages'
 
 // Collections
 export const colRestaurants = () => collection(db, 'restaurants')
@@ -218,6 +219,51 @@ export async function createCategory({ menuId, name, order, description, tag, ac
   return result
 }
 
+// CRUD con soporte multiidioma
+export async function createCategoryMultiLang({ 
+  menuId, 
+  nameMultiLang, 
+  descriptionMultiLang, 
+  order, 
+  tag, 
+  active = true 
+}) {
+  // Crear campos multiidioma si se pasan valores simples
+  const name = typeof nameMultiLang === 'string' 
+    ? migrateToMultiLanguage(nameMultiLang) 
+    : nameMultiLang || createMultiLanguageField()
+    
+  const description = typeof descriptionMultiLang === 'string'
+    ? migrateToMultiLanguage(descriptionMultiLang)
+    : descriptionMultiLang || createMultiLanguageField()
+
+  const result = await addDoc(colCategories(), {
+    menuId,
+    name, // Objeto multiidioma: { es: "Categoría", en: "Category", ... }
+    description, // Objeto multiidioma: { es: "Descripción", en: "Description", ... }
+    order: Number(order) || 0,
+    tag: tag || '',
+    active: active !== false,
+    // Metadatos para identificar que es multiidioma
+    isMultiLanguage: true,
+    supportedLanguages: Object.keys(name),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  
+  // Actualizar estadísticas del restaurante
+  try {
+    const menu = await getMenu(menuId)
+    if (menu?.restaurantId) {
+      await refreshRestaurantStats(menu.restaurantId)
+    }
+  } catch (error) {
+    console.warn('Error updating stats after category creation:', error)
+  }
+  
+  return result
+}
+
 export async function updateCategory(id, data) {
   const result = await updateDoc(doc(db, 'categories', id), { ...data, updatedAt: serverTimestamp() })
   
@@ -311,6 +357,55 @@ export async function createItem({ categoryId, name, description, price, currenc
   return result
 }
 
+export async function createItemMultiLang({ 
+  categoryId, 
+  nameMultiLang, 
+  descriptionMultiLang, 
+  price, 
+  currency = 'ARS', 
+  available = true, 
+  order = 0 
+}) {
+  // Crear campos multiidioma si se pasan valores simples
+  const name = typeof nameMultiLang === 'string' 
+    ? migrateToMultiLanguage(nameMultiLang) 
+    : nameMultiLang || createMultiLanguageField()
+    
+  const description = typeof descriptionMultiLang === 'string'
+    ? migrateToMultiLanguage(descriptionMultiLang)
+    : descriptionMultiLang || createMultiLanguageField()
+
+  const result = await addDoc(colItems(), {
+    categoryId,
+    name, // Objeto multiidioma: { es: "Producto", en: "Product", ... }
+    description, // Objeto multiidioma: { es: "Descripción", en: "Description", ... }
+    price: Number(price) || 0,
+    currency,
+    available,
+    order: Number(order) || 0,
+    // Metadatos para identificar que es multiidioma
+    isMultiLanguage: true,
+    supportedLanguages: Object.keys(name),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+  
+  // Actualizar estadísticas del restaurante
+  try {
+    const category = await getDoc(doc(db, 'categories', categoryId))
+    if (category.exists()) {
+      const menu = await getMenu(category.data().menuId)
+      if (menu?.restaurantId) {
+        await refreshRestaurantStats(menu.restaurantId)
+      }
+    }
+  } catch (error) {
+    console.warn('Error updating stats after item creation:', error)
+  }
+  
+  return result
+}
+
 export async function updateItem(id, data) {
   const result = await updateDoc(doc(db, 'items', id), { ...data, updatedAt: serverTimestamp() })
   
@@ -382,6 +477,39 @@ export async function createMenu({ restaurantId, title, type = 'main', descripti
     active,
     deleted: false,
     order: Number(order) || 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function createMenuMultiLang({ 
+  restaurantId, 
+  titleMultiLang, 
+  descriptionMultiLang, 
+  type = 'main', 
+  active = true, 
+  order = 0 
+}) {
+  // Crear campos multiidioma si se pasan valores simples
+  const title = typeof titleMultiLang === 'string' 
+    ? migrateToMultiLanguage(titleMultiLang) 
+    : titleMultiLang || createMultiLanguageField()
+    
+  const description = typeof descriptionMultiLang === 'string'
+    ? migrateToMultiLanguage(descriptionMultiLang)
+    : descriptionMultiLang || createMultiLanguageField()
+
+  return addDoc(colMenus(), {
+    restaurantId,
+    title, // Objeto multiidioma: { es: "Carta Principal", en: "Main Menu", ... }
+    description, // Objeto multiidioma: { es: "Descripción", en: "Description", ... }
+    type, // 'main', 'lunch', 'dinner', 'drinks', 'desserts', etc.
+    active,
+    deleted: false,
+    order: Number(order) || 0,
+    // Metadatos para identificar que es multiidioma
+    isMultiLanguage: true,
+    supportedLanguages: Object.keys(title),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -612,7 +740,6 @@ export async function trackEvent(eventData) {
   try {
     const event = {
       ...eventData,
-      timestamp: serverTimestamp(),
       createdAt: serverTimestamp()
     }
     
@@ -881,16 +1008,80 @@ async function updateMenuViewStats(restaurantId, menuId) {
 }
 
 /**
+ * Verifica si un restaurante/menú tiene visitas registradas
+ * Función más robusta que verifica en múltiples colecciones
+ */
+export async function checkHasVisits(restaurantId, menuId) {
+  try {
+    console.log('checkHasVisits called with:', { restaurantId, menuId })
+    
+    // Primero verificar en analyticsVisitStats
+    const visitStatsQuery = query(
+      colAnalyticsVisitStats(),
+      where('restaurantId', '==', restaurantId),
+      where('menuId', '==', menuId),
+      where('type', '==', 'daily_views'),
+      limit(1)
+    )
+    
+    const visitStatsSnap = await getDocs(visitStatsQuery)
+    console.log('Found visit stats documents:', visitStatsSnap.size)
+    
+    if (!visitStatsSnap.empty) {
+      const totalViews = visitStatsSnap.docs.reduce((sum, doc) => sum + (doc.data().views || 0), 0)
+      console.log('Total views from visit stats:', totalViews)
+      
+      if (totalViews > 0) {
+        return {
+          success: true,
+          data: { totalViews, hasVisits: true }
+        }
+      }
+    }
+    
+    // Si no hay datos en visitStats, verificar en analyticsEvents como respaldo
+    const eventsQuery = query(
+      colAnalyticsEvents(),
+      where('restaurantId', '==', restaurantId),
+      where('menuId', '==', menuId),
+      where('type', '==', 'MENU_VIEW'),
+      limit(1)
+    )
+    
+    const eventsSnap = await getDocs(eventsQuery)
+    console.log('Found analytics events:', eventsSnap.size)
+    
+    const hasVisits = !eventsSnap.empty
+    
+    return {
+      success: true,
+      data: { 
+        totalViews: eventsSnap.size,
+        hasVisits 
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error checking visits:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+/**
  * Obtiene estadísticas de visualizaciones por período
  */
 export async function getViewStats(restaurantId, menuId = null, days = 30) {
   try {
+    console.log('getViewStats called with:', { restaurantId, menuId, days })
+    
     const endDate = new Date()
     const startDate = new Date()
     startDate.setDate(endDate.getDate() - days)
     
     const startDateStr = startDate.toISOString().split('T')[0]
     const endDateStr = endDate.toISOString().split('T')[0]
+    
+    console.log('Date range:', { startDateStr, endDateStr })
     
     let q
     if (menuId) {
@@ -919,9 +1110,14 @@ export async function getViewStats(restaurantId, menuId = null, days = 30) {
     const snap = await getDocs(q)
     const viewStats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     
+    console.log('Found view stats documents:', viewStats.length)
+    console.log('View stats data:', viewStats)
+    
     // Calcular totales
     const totalViews = viewStats.reduce((sum, stat) => sum + (stat.views || 0), 0)
     const avgViewsPerDay = viewStats.length > 0 ? totalViews / viewStats.length : 0
+    
+    console.log('Calculated totalViews:', totalViews)
     
     return {
       success: true,
@@ -966,5 +1162,132 @@ export async function refreshRestaurantStats(restaurantId) {
       console.error('Even fallback failed:', fallbackError)
       return { success: false, error: fallbackError.message }
     }
+  }
+}
+
+// Obtener estadísticas de visitas únicas
+export async function getUniqueVisitStats(restaurantId, menuId = null, days = 30) {
+  try {
+    console.log('getUniqueVisitStats called with:', { restaurantId, menuId, days })
+    
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
+    
+    console.log('Date range for unique visits:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() })
+    
+    // Consultar eventos de visitas únicas
+    const eventsQuery = query(
+      colAnalyticsEvents(),
+      where('restaurantId', '==', restaurantId),
+      where('type', '==', ANALYTICS_EVENTS.UNIQUE_VISIT),
+      where('timestamp', '>=', startDate.toISOString()),
+      where('timestamp', '<=', endDate.toISOString()),
+      orderBy('timestamp', 'desc')
+    )
+    
+    const eventsSnapshot = await getDocs(eventsQuery)
+    const events = eventsSnapshot.docs.map(doc => doc.data())
+    
+    console.log('Unique visit events found:', events.length)
+    
+    // Agrupar por día
+    const dailyStats = {}
+    events.forEach(event => {
+      const date = new Date(event.timestamp).toISOString().split('T')[0]
+      if (!dailyStats[date]) {
+        dailyStats[date] = 0
+      }
+      dailyStats[date]++
+    })
+    
+    // Convertir a array y ordenar
+    const dailyArray = Object.entries(dailyStats).map(([date, uniqueVisits]) => ({
+      date,
+      uniqueVisits
+    })).sort((a, b) => new Date(a.date) - new Date(b.date))
+    
+    const totalUniqueVisits = events.length
+    const avgUniqueVisitsPerDay = days > 0 ? totalUniqueVisits / days : 0
+    
+    console.log('Unique visit stats result:', { totalUniqueVisits, avgUniqueVisitsPerDay, dailyArray })
+    
+    return {
+      success: true,
+      data: {
+        totalUniqueVisits,
+        avgUniqueVisitsPerDay,
+        dailyStats: dailyArray
+      }
+    }
+  } catch (error) {
+    console.error('Error getting unique visit stats:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Obtener estadísticas por mesa
+export async function getTableStats(restaurantId, days = 30) {
+  try {
+    console.log('getTableStats called with:', { restaurantId, days })
+    
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
+    
+    console.log('Date range for table stats:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() })
+    
+    // Consultar eventos con número de mesa
+    const eventsQuery = query(
+      colAnalyticsEvents(),
+      where('restaurantId', '==', restaurantId),
+      where('type', '==', ANALYTICS_EVENTS.MENU_VIEW),
+      where('timestamp', '>=', startDate.toISOString()),
+      where('timestamp', '<=', endDate.toISOString())
+    )
+    
+    const eventsSnapshot = await getDocs(eventsQuery)
+    const events = eventsSnapshot.docs.map(doc => doc.data())
+    
+    console.log('Menu view events found:', events.length)
+    
+    // Filtrar eventos que tienen número de mesa y agrupar
+    const tableStats = {}
+    let totalTableScans = 0
+    
+    events.forEach(event => {
+      console.log('Event tableNumber:', event.tableNumber)
+      if (event.tableNumber) {
+        const tableNum = event.tableNumber.toString()
+        if (!tableStats[tableNum]) {
+          tableStats[tableNum] = 0
+        }
+        tableStats[tableNum]++
+        totalTableScans++
+      }
+    })
+    
+    console.log('Table stats found:', tableStats, 'Total table scans:', totalTableScans)
+    
+    // Convertir a array y ordenar por número de mesa
+    const tableArray = Object.entries(tableStats)
+      .map(([tableNumber, scans]) => ({
+        tableNumber: parseInt(tableNumber),
+        scans
+      }))
+      .sort((a, b) => a.tableNumber - b.tableNumber)
+    
+    return {
+      success: true,
+      data: {
+        totalTableScans,
+        totalTables: tableArray.length,
+        avgScansPerTable: tableArray.length > 0 ? totalTableScans / tableArray.length : 0,
+        tableStats: tableArray
+      }
+    }
+  } catch (error) {
+    console.error('Error getting table stats:', error)
+    return { success: false, error: error.message }
   }
 }

@@ -34,7 +34,7 @@ service cloud.firestore {
     match /menus/{menuId} {
       allow read: if isRestaurantPublic(resource.data.restaurantId) || isOwnerOfRestaurant(resource.data.restaurantId);
       allow create: if isOwnerOfRestaurant(request.resource.data.restaurantId)
-        && request.resource.data.keys().hasOnly(['restaurantId','title','type','description','active','deleted','order','createdAt','updatedAt']);
+        && request.resource.data.keys().hasOnly(['restaurantId','title','type','description','active','deleted','order','isMultiLanguage','supportedLanguages','createdAt','updatedAt']);
       allow update, delete: if isOwnerOfRestaurant(resource.data.restaurantId);
     }
 
@@ -45,7 +45,8 @@ service cloud.firestore {
       function catRestaurantIdFromNew() { return menuDoc(request.resource.data.menuId).data.restaurantId; }
 
       allow read: if isRestaurantPublic(catRestaurantIdFromExisting()) || isOwnerOfRestaurant(catRestaurantIdFromExisting());
-      allow create: if isOwnerOfRestaurant(catRestaurantIdFromNew());
+      allow create: if isOwnerOfRestaurant(catRestaurantIdFromNew())
+        && request.resource.data.keys().hasOnly(['menuId','name','description','order','tag','active','isMultiLanguage','supportedLanguages','createdAt','updatedAt']);
       allow update, delete: if isOwnerOfRestaurant(catRestaurantIdFromExisting());
     }
 
@@ -57,7 +58,8 @@ service cloud.firestore {
       function itemRestaurantIdFromNew() { return menuDoc(categoryDoc(request.resource.data.categoryId).data.menuId).data.restaurantId; }
 
       allow read: if isRestaurantPublic(itemRestaurantIdFromExisting()) || isOwnerOfRestaurant(itemRestaurantIdFromExisting());
-      allow create: if isOwnerOfRestaurant(itemRestaurantIdFromNew());
+      allow create: if isOwnerOfRestaurant(itemRestaurantIdFromNew())
+        && request.resource.data.keys().hasOnly(['categoryId','name','description','price','currency','available','order','isMultiLanguage','supportedLanguages','createdAt','updatedAt']);
       allow update, delete: if isOwnerOfRestaurant(itemRestaurantIdFromExisting());
     }
 

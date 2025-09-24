@@ -136,8 +136,11 @@ export default function Categories({ onCategoriesChange }) {
         active: formData.active,
         order: nextOrder
       })
+      
+      // Close dialog and show success
       setCreateDialog(false)
       showSuccess('Categoría creada exitosamente')
+      
       await load()
       
       // Update analytics stats
@@ -149,6 +152,7 @@ export default function Categories({ onCategoriesChange }) {
       window.dispatchEvent(new CustomEvent('dashboardUpdate'))
     } catch (error) {
       showError('Error al crear la categoría')
+      throw error // Re-throw to handle in dialog
     }
   }
 
@@ -161,8 +165,11 @@ export default function Categories({ onCategoriesChange }) {
         tag: formData.tag,
         active: formData.active
       })
+      
+      // Close dialog and show success
       setEditDialog({ isOpen: false, category: null })
       showSuccess('Categoría actualizada exitosamente')
+      
       await load()
       
       // Update analytics stats
@@ -171,6 +178,7 @@ export default function Categories({ onCategoriesChange }) {
       })
     } catch (error) {
       showError('Error al actualizar la categoría')
+      throw error // Re-throw to handle in dialog
     }
   }
 
@@ -187,7 +195,14 @@ export default function Categories({ onCategoriesChange }) {
     if (deleteDialog.categoryId) {
       try {
         await deleteCategory(deleteDialog.categoryId)
+        
+        // Close both dialogs
+        setDeleteDialog({ isOpen: false, categoryId: null, categoryName: '' })
+        setEditDialog({ isOpen: false, category: null })
+        
+        // Show success message with primary button color
         showSuccess('Categoría eliminada exitosamente')
+        
         await load()
         
         // Update analytics stats
@@ -200,8 +215,9 @@ export default function Categories({ onCategoriesChange }) {
       } catch (error) {
         showError('Error al eliminar la categoría')
       }
+    } else {
+      setDeleteDialog({ isOpen: false, categoryId: null, categoryName: '' })
     }
-    setDeleteDialog({ isOpen: false, categoryId: null, categoryName: '' })
   }
 
   return (

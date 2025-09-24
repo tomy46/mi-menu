@@ -8,14 +8,18 @@ import {
   PhotoIcon,
   ShareIcon
 } from '@heroicons/react/24/outline'
-import { getRestaurant, getCategories, getItems, getActiveMenuByRestaurant } from '../../services/firestore.js'
+import { getRestaurant, getCategories, getItems, getActiveMenuByRestaurant, getViewStats, checkHasVisits } from '../../services/firestore.js'
+import { useSnackbar } from '../../hooks/useSnackbar.js'
+import Snackbar from '../../components/Snackbar.jsx'
 
 export default function Dashboard() {
   const { restaurantId } = useParams()
   const [restaurant, setRestaurant] = useState(null)
   const [categories, setCategories] = useState([])
   const [items, setItems] = useState([])
+  const [hasVisits, setHasVisits] = useState(false)
   const [loading, setLoading] = useState(true)
+  const { snackbar, showSuccess, showError, hideSnackbar } = useSnackbar()
 
   const loadData = async () => {
     try {
@@ -26,15 +30,30 @@ export default function Dashboard() {
       // Load menu and categories
       const menu = await getActiveMenuByRestaurant(restaurantId)
       if (menu) {
-        const [categoriesData, itemsData] = await Promise.all([
+        const [categoriesData, itemsData, viewStatsResult] = await Promise.all([
           getCategories(menu.id),
-          getItems(restaurantId)
+          getItems(restaurantId),
+          checkHasVisits(restaurantId, menu.id) // Verificar visitas con función más robusta
         ])
         setCategories(categoriesData)
         setItems(itemsData)
+        
+        // Verificar si hay visitas
+        console.log('Dashboard - CheckHasVisits result:', viewStatsResult)
+        console.log('Dashboard - Has visits:', viewStatsResult?.data?.hasVisits)
+        console.log('Dashboard - Total views:', viewStatsResult?.data?.totalViews)
+        
+        if (viewStatsResult.success && (viewStatsResult.data.hasVisits || viewStatsResult.data.totalViews > 0)) {
+          console.log('Dashboard - Setting hasVisits to true')
+          setHasVisits(true)
+        } else {
+          console.log('Dashboard - Setting hasVisits to false')
+          setHasVisits(false)
+        }
       } else {
         setCategories([])
         setItems([])
+        setHasVisits(false)
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error)
@@ -101,17 +120,36 @@ export default function Dashboard() {
     },
     {
       id: 4,
-      title: 'Compartir menú',
-      description: 'Haz tu menú público y compártelo con tus clientes',
-      completed: restaurant?.isPublic,
+      title: 'Obtener tu primera visita',
+      description: 'Comparte tu menú digital y recibe tus primeros clientes',
+      completed: hasVisits,
       icon: ShareIcon,
-      link: `/r/${restaurantId}`,
-      action: 'Ver menú público'
+      link: null, // No tiene link directo, se maneja con botones personalizados
+      action: null // Se maneja con botones personalizados
     }
   ]
 
   const completedSteps = steps.filter(step => step.completed).length
   const progress = (completedSteps / steps.length) * 100
+
+  // Funciones para el cuarto paso
+  const handleShareLink = () => {
+    const publicUrl = `${window.location.origin}/r/${restaurantId}`
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      showSuccess('¡Enlace copiado al portapapeles!')
+    }).catch(() => {
+      // Fallback: mostrar el enlace para copiar manualmente
+      const copied = prompt('Copia este enlace:', publicUrl)
+      if (copied) {
+        showSuccess('Enlace listo para compartir')
+      }
+    })
+  }
+
+  const handleGenerateQR = () => {
+    // Navegar a la página Menu y hacer scroll a la sección QR
+    window.location.href = `/admin/${restaurantId}/menu#qr-section`
+  }
 
   if (loading) {
     return (
@@ -176,6 +214,36 @@ export default function Dashboard() {
                     <CheckCircleIcon className="w-4 h-4 text-green-600" />
                     <span className="text-sm text-green-600 font-medium">Completado</span>
                   </div>
+                ) : step.id === 4 ? (
+                  // Botones personalizados para el cuarto paso
+                  restaurant?.isPublic ? (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        onClick={handleShareLink}
+                        className="inline-flex items-center px-4 py-2 bg-[#111827] text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+                      >
+                        Compartir enlace
+                      </button>
+                      <button
+                        onClick={handleGenerateQR}
+                        className="inline-flex items-center px-4 py-2 border border-[#111827] bg-white text-[#111827] text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        Generar QR
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-sm text-amber-600 bg-amber-50 p-2 rounded-lg">
+                        Primero debes hacer tu menú público en Ajustes
+                      </p>
+                      <a
+                        href={`/admin/${restaurantId}/ajustes`}
+                        className="inline-flex items-center px-4 py-2 bg-[#111827] text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors"
+                      >
+                        Ir a Ajustes
+                      </a>
+                    </div>
+                  )
                 ) : (
                   <a
                     href={step.link}
@@ -190,7 +258,16 @@ export default function Dashboard() {
         </div>
       </div>
 
-
+      {/* Snackbar */}
+      <Snackbar
+        isOpen={snackbar.isOpen}
+        onClose={hideSnackbar}
+        message={snackbar.message}
+        type={snackbar.type}
+        duration={snackbar.duration}
+        position={snackbar.position}
+        action={snackbar.action}
+      />
     </div>
   )
 }

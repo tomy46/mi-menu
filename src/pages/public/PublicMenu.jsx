@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { getActiveMenuByRestaurant, getCategories, getItemsByCategory, getRestaurant, trackEvent } from '../../services/firestore.js'
 import { getTheme, getGoogleFontsUrl, getCategoryIcon, DEFAULT_THEME } from '../../config/themes.js'
 import { ANALYTICS_EVENTS, generateDeviceFingerprint, isUniqueVisit } from '../../config/analytics.js'
@@ -7,13 +7,42 @@ import MenuUnavailable from '../../components/MenuUnavailable.jsx'
 
 export default function PublicMenu() {
   const { restaurantId } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tableNumber = searchParams.get('mesa') // Obtener número de mesa de la URL
+  const languageParam = searchParams.get('lang') // Obtener idioma de la URL
   const [restaurant, setRestaurant] = useState(null)
+  const [currentLanguage, setCurrentLanguage] = useState('es') // Idioma por defecto
   const [menu, setMenu] = useState(null)
   const [categories, setCategories] = useState([])
   const [itemsByCat, setItemsByCat] = useState({})
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
   const hasTrackedView = useRef(false) // Para evitar tracking duplicado
+  
+  // Manejar idioma desde URL o localStorage
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem(`menu-language-${restaurantId}`)
+    
+    if (languageParam) {
+      // Idioma desde URL tiene prioridad
+      setCurrentLanguage(languageParam)
+      localStorage.setItem(`menu-language-${restaurantId}`, languageParam)
+    } else if (savedLanguage) {
+      // Usar idioma guardado
+      setCurrentLanguage(savedLanguage)
+    }
+  }, [languageParam, restaurantId])
+  
+  // Función para cambiar idioma
+  const handleLanguageChange = (newLanguage) => {
+    setCurrentLanguage(newLanguage)
+    localStorage.setItem(`menu-language-${restaurantId}`, newLanguage)
+    
+    // Actualizar URL sin recargar la página
+    const newSearchParams = new URLSearchParams(searchParams)
+    newSearchParams.set('lang', newLanguage)
+    setSearchParams(newSearchParams, { replace: true })
+  }
   
   // Get theme configuration
   const theme = getTheme(restaurant?.theme || DEFAULT_THEME)
@@ -57,13 +86,14 @@ export default function PublicMenu() {
     const [ref, isVisible] = useFadeInOnScroll()
     
     const isCupido = theme.id === 'cupido'
+    const isColombia = theme.id === 'colombia'
     
     return (
       <div 
         ref={ref}
         className={`group relative transition-all duration-700 ease-out ${
           isCupido ? 'text-center' : ''
-        }`}
+        } ${isColombia ? 'md:mx-8' : ''}`}
         style={{
           opacity: isVisible ? 1 : 0,
           transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
@@ -72,37 +102,29 @@ export default function PublicMenu() {
           backgroundColor: 'transparent'
         }}
       >
-        <div className={isCupido ? 'block' : 'flex items-start gap-4'}>
-          <div className="flex-1">
-            {/* Product name and price on same line */}
-            <div className={`flex items-baseline gap-2 mb-1 ${isCupido ? 'justify-center' : ''}`}>
+        {isColombia ? (
+          // Layout para tema Colombia
+          <div className="block">
+            {/* Título y precio en la misma fila */}
+            <div className="flex items-baseline justify-between mb-1">
               <h3 
                 className="text-lg font-semibold transition-all duration-300 ease-in-out"
                 style={{ 
                   color: theme.colors.text.primary, 
                   fontFamily: theme.fonts.secondary,
                   fontWeight: 600,
-                  letterSpacing: isCupido ? '0.02em' : 'normal'
+                  letterSpacing: 'normal'
                 }}
               >
-                {item.name}
+                {item.name.toUpperCase()}
               </h3>
+              
               <span 
-                className="text-lg font-semibold transition-all duration-300 ease-in-out"
+                className="text-lg transition-all duration-300 ease-in-out"
                 style={{ 
                   color: theme.colors.text.primary, 
                   fontFamily: theme.fonts.secondary,
-                  fontWeight: 600
-                }}
-              >
-                {isCupido ? '-' : '/'}
-              </span>
-              <span 
-                className="text-lg font-semibold transition-all duration-300 ease-in-out"
-                style={{ 
-                  color: theme.colors.text.primary, 
-                  fontFamily: theme.fonts.secondary,
-                  fontWeight: isCupido ? 500 : 600
+                  fontWeight: 400
                 }}
               >
                 {new Intl.NumberFormat('es-AR', { 
@@ -112,20 +134,77 @@ export default function PublicMenu() {
               </span>
             </div>
             
+            {/* Descripción */}
             {item.description && (
               <p 
                 className="text-sm leading-relaxed transition-all duration-300 ease-in-out"
                 style={{ 
                   color: theme.colors.text.muted, 
                   fontFamily: theme.fonts.secondary,
-                  opacity: 0.8
+                  opacity: 0.9
                 }}
               >
                 {item.description}
               </p>
             )}
           </div>
-        </div>
+        ) : (
+          // Layout original para otros temas
+          <div className={isCupido ? 'block' : 'flex items-start gap-4'}>
+            <div className="flex-1">
+              {/* Product name and price on same line */}
+              <div className={`flex items-baseline gap-2 mb-1 ${isCupido ? 'justify-center' : ''}`}>
+                <h3 
+                  className="text-lg font-semibold transition-all duration-300 ease-in-out"
+                  style={{ 
+                    color: theme.colors.text.primary, 
+                    fontFamily: theme.fonts.secondary,
+                    fontWeight: 600,
+                    letterSpacing: isCupido ? '0.02em' : 'normal'
+                  }}
+                >
+                  {item.name}
+                </h3>
+                <span 
+                  className="text-lg font-semibold transition-all duration-300 ease-in-out"
+                  style={{ 
+                    color: theme.colors.text.primary, 
+                    fontFamily: theme.fonts.secondary,
+                    fontWeight: 600
+                  }}
+                >
+                  {isCupido ? '-' : '/'}
+                </span>
+                <span 
+                  className="text-lg font-semibold transition-all duration-300 ease-in-out"
+                  style={{ 
+                    color: theme.colors.text.primary, 
+                    fontFamily: theme.fonts.secondary,
+                    fontWeight: isCupido ? 500 : 600
+                  }}
+                >
+                  {new Intl.NumberFormat('es-AR', { 
+                    style: 'currency', 
+                    currency: item.currency || 'ARS' 
+                  }).format(item.price || 0)}
+                </span>
+              </div>
+              
+              {item.description && (
+                <p 
+                  className="text-sm leading-relaxed transition-all duration-300 ease-in-out"
+                  style={{ 
+                    color: theme.colors.text.muted, 
+                    fontFamily: theme.fonts.secondary,
+                    opacity: 0.8
+                  }}
+                >
+                  {item.description}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -156,8 +235,19 @@ export default function PublicMenu() {
             const isUnique = isUniqueVisit(restaurantId)
             const sessionId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
             
-            // Track visita general (siempre)
-            trackEvent({
+            // Obtener idioma actual (con fallback a español)
+            const trackingLanguage = currentLanguage || 'es'
+            
+            console.log('Tracking event with data:', {
+              type: ANALYTICS_EVENTS.MENU_VIEW,
+              restaurantId: restaurantId,
+              menuId: m.id,
+              tableNumber: tableNumber,
+              language: trackingLanguage
+            })
+            
+            // Preparar datos del evento
+            const eventData = {
               type: ANALYTICS_EVENTS.MENU_VIEW,
               restaurantId: restaurantId,
               menuId: m.id,
@@ -165,23 +255,51 @@ export default function PublicMenu() {
               deviceId: deviceId,
               isUniqueVisit: isUnique,
               timestamp: new Date().toISOString(),
-              sessionId: sessionId
-            }).catch(error => {
-              console.warn('Analytics tracking failed:', error)
+              sessionId: sessionId,
+              language: trackingLanguage
+            }
+            
+            // Solo agregar tableNumber si existe
+            if (tableNumber) {
+              eventData.tableNumber = tableNumber
+            }
+            
+            // Track visita general (siempre)
+            trackEvent(eventData).catch(error => {
+              console.error('Analytics tracking failed:', error)
+              console.error('Event data that failed:', eventData)
             })
             
             // Track visita única (solo si es primera vez del dispositivo)
             if (isUnique) {
-              trackEvent({
+              console.log('Tracking unique visit with data:', {
+                type: ANALYTICS_EVENTS.UNIQUE_VISIT,
+                restaurantId: restaurantId,
+                menuId: m.id,
+                tableNumber: tableNumber,
+                language: trackingLanguage
+              })
+              
+              // Preparar datos del evento único
+              const uniqueEventData = {
                 type: ANALYTICS_EVENTS.UNIQUE_VISIT,
                 restaurantId: restaurantId,
                 menuId: m.id,
                 userAgent: navigator.userAgent,
                 deviceId: deviceId,
                 timestamp: new Date().toISOString(),
-                sessionId: sessionId
-              }).catch(error => {
-                console.warn('Unique visit tracking failed:', error)
+                sessionId: sessionId,
+                language: trackingLanguage
+              }
+              
+              // Solo agregar tableNumber si existe
+              if (tableNumber) {
+                uniqueEventData.tableNumber = tableNumber
+              }
+              
+              trackEvent(uniqueEventData).catch(error => {
+                console.error('Unique visit tracking failed:', error)
+                console.error('Unique event data that failed:', uniqueEventData)
               })
             }
           }
@@ -335,29 +453,31 @@ export default function PublicMenu() {
                 {restaurant.name}
               </div>
               
-              {restaurant.address && (
+              {/* Descripción del menú */}
+              {menu?.description && (
                 <div 
-                  className="text-base mb-2 transition-all duration-500 ease-in-out"
+                  className="text-lg mb-4 transition-all duration-500 ease-in-out"
                   style={{ 
                     color: restaurant?.theme === 'cupido' ? theme.colors.text.white : theme.colors.text.primary, 
                     fontFamily: theme.fonts.secondary,
                     opacity: 0.9
                   }}
                 >
-                  {restaurant.address}
+                  {menu.description}
                 </div>
               )}
               
-              {restaurant.hours && (
+              {/* Número de mesa si está presente */}
+              {tableNumber && (
                 <div 
-                  className="text-base transition-all duration-500 ease-in-out"
+                  className="text-lg font-medium mb-2 px-3 py-1 rounded-full inline-block"
                   style={{ 
-                    color: restaurant?.theme === 'cupido' ? theme.colors.text.white : theme.colors.text.primary, 
-                    fontFamily: theme.fonts.secondary,
-                    opacity: 0.9
+                    color: restaurant?.theme === 'cupido' ? theme.colors.text.white : theme.colors.text.primary,
+                    backgroundColor: restaurant?.theme === 'cupido' ? 'rgba(255,255,255,0.2)' : theme.colors.primary + '20',
+                    fontFamily: theme.fonts.secondary
                   }}
                 >
-                  {restaurant.hours}
+                  Mesa {tableNumber}
                 </div>
               )}
             </div>
@@ -387,9 +507,9 @@ export default function PublicMenu() {
             return (
               <section key={category.id} className={`${restaurant?.theme === 'cupido' ? 'mb-12' : 'mb-6'}`}>
                 {/* Category Header */}
-                <div className={`mb-6 ${restaurant?.theme === 'cupido' ? 'text-center' : ''}`}>
+                <div className={`mb-6 ${restaurant?.theme === 'cupido' || restaurant?.theme === 'colombia' ? 'text-center' : ''}`}>
                   <h2 
-                    className="text-2xl md:text-3xl font-bold transition-all duration-500 ease-in-out"
+                    className={`text-2xl md:text-3xl font-bold transition-all duration-500 ease-in-out ${restaurant?.theme === 'colombia' ? 'italic' : ''}`}
                     style={{ 
                       color: theme.colors.text.primary, 
                       fontFamily: theme.fonts.primary,
@@ -447,6 +567,48 @@ export default function PublicMenu() {
               >
                 {restaurant.name}
               </span>
+            </div>
+            
+            {/* Información del restaurante */}
+            <div className="space-y-2 mb-4">
+              {restaurant.address && (
+                <div 
+                  className="text-sm transition-all duration-500 ease-in-out"
+                  style={{ 
+                    color: restaurant?.theme === 'cupido' ? theme.colors.text.white : theme.colors.text.primary, 
+                    fontFamily: theme.fonts.secondary,
+                    opacity: 0.9
+                  }}
+                >
+                  📍 {restaurant.address}
+                </div>
+              )}
+              
+              {restaurant.phone && (
+                <div 
+                  className="text-sm transition-all duration-500 ease-in-out"
+                  style={{ 
+                    color: restaurant?.theme === 'cupido' ? theme.colors.text.white : theme.colors.text.primary, 
+                    fontFamily: theme.fonts.secondary,
+                    opacity: 0.9
+                  }}
+                >
+                  📞 {restaurant.phone}
+                </div>
+              )}
+              
+              {restaurant.hours && (
+                <div 
+                  className="text-sm transition-all duration-500 ease-in-out"
+                  style={{ 
+                    color: restaurant?.theme === 'cupido' ? theme.colors.text.white : theme.colors.text.primary, 
+                    fontFamily: theme.fonts.secondary,
+                    opacity: 0.9
+                  }}
+                >
+                  🕒 {restaurant.hours}
+                </div>
+              )}
             </div>
             
             {/* Social Media Links */}

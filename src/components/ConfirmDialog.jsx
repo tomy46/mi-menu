@@ -10,6 +10,7 @@ import Dialog from './Dialog.jsx'
  * @param {string} confirmText - Text for confirm button (default: "Confirmar")
  * @param {string} cancelText - Text for cancel button (default: "Cancelar")
  * @param {string} variant - Confirm button variant: 'danger', 'primary', 'success' (default: 'danger')
+ * @param {boolean} isLoading - Shows loading spinner on confirm button
  */
 export default function ConfirmDialog({
   isOpen = false,
@@ -19,13 +20,15 @@ export default function ConfirmDialog({
   description,
   confirmText = "Confirmar",
   cancelText = "Cancelar",
-  variant = "danger"
+  variant = "danger",
+  isLoading = false
 }) {
   const handleConfirm = () => {
     if (onConfirm) {
       onConfirm()
     }
-    if (onClose) {
+    // Don't auto-close when loading - let the parent handle it
+    if (onClose && !isLoading) {
       onClose()
     }
   }
@@ -51,12 +54,15 @@ export default function ConfirmDialog({
       primaryButton={{
         text: confirmText,
         onClick: handleConfirm,
-        variant: variant
+        variant: variant,
+        isLoading: isLoading,
+        disabled: isLoading
       }}
       secondaryButton={{
         text: cancelText,
         onClick: onClose,
-        variant: 'secondary'
+        variant: 'secondary',
+        disabled: isLoading
       }}
       size="sm"
     />

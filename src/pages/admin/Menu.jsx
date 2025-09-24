@@ -3,18 +3,23 @@ import { useParams } from 'react-router-dom'
 import { 
   PaintBrushIcon,
   ExclamationTriangleIcon,
-  QrCodeIcon
+  QrCodeIcon,
+  Cog6ToothIcon,
+  LockClosedIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline'
 import { getRestaurant, updateRestaurant, getActiveMenuByRestaurant, getMenusByRestaurant, toggleMenuActive, createMenu } from '../../services/firestore.js'
 import { getTheme } from '../../config/themes.js'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
 import Snackbar from '../../components/Snackbar.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
-import QRGenerator from '../../components/QRGenerator.jsx'
+import QROptionsDialog from '../../components/QROptionsDialog.jsx'
+import QRGeneratorNew from '../../components/QRGeneratorNew.jsx'
 
 const themes = [
   { id: 'elegant', name: 'Elegante', description: 'Diseño clásico y sofisticado' },
-  { id: 'cupido', name: 'Cupido', description: 'Romántico y delicado' }
+  { id: 'cupido', name: 'Cupido', description: 'Romántico y delicado' },
+  { id: 'colombia', name: 'Colombia', description: 'Colores cálidos inspirados en Colombia' }
 ]
 
 
@@ -28,7 +33,9 @@ export default function Menu() {
   const [saving, setSaving] = useState(false)
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
   const [menuToToggle, setMenuToToggle] = useState(null)
+  const [showQROptions, setShowQROptions] = useState(false)
   const [showQRGenerator, setShowQRGenerator] = useState(false)
+  const [qrOptions, setQrOptions] = useState(null)
   const { snackbar, showSuccess, showError } = useSnackbar()
 
   useEffect(() => {
@@ -56,6 +63,21 @@ export default function Menu() {
       loadData()
     }
   }, [restaurantId])
+
+  // Efecto para hacer scroll a la sección QR si viene desde el hash
+  useEffect(() => {
+    if (!loading && window.location.hash === '#qr-section') {
+      setTimeout(() => {
+        const qrSection = document.getElementById('qr-section')
+        if (qrSection) {
+          qrSection.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+          })
+        }
+      }, 100) // Pequeño delay para asegurar que el DOM esté renderizado
+    }
+  }, [loading])
 
   const handleThemeChange = (themeId) => {
     setSelectedTheme(themeId)
@@ -145,6 +167,23 @@ export default function Menu() {
     }
   }
 
+  const handleQROptionSelect = (options) => {
+    setQrOptions(options)
+    setShowQROptions(false)
+    setShowQRGenerator(true)
+  }
+
+  const handleBackToOptions = () => {
+    setShowQRGenerator(false)
+    setShowQROptions(true)
+  }
+
+  const handleCloseQR = () => {
+    setShowQRGenerator(false)
+    setShowQROptions(false)
+    setQrOptions(null)
+  }
+
   const getThemePreview = (themeId) => {
     const theme = getTheme(themeId)
     return (
@@ -208,7 +247,7 @@ export default function Menu() {
           Elige el diseño que mejor represente la personalidad de tu restaurante
         </p>
 
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {themes.map((theme) => (
             <div key={theme.id} className="space-y-3">
               <button
@@ -243,46 +282,75 @@ export default function Menu() {
         )}
       </div>
 
-      {/* Menu Status */}
+      {/* Menu Management */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <ExclamationTriangleIcon className="w-5 h-5 text-gray-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Estado del Menú</h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Cog6ToothIcon className="w-5 h-5 text-gray-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Gestionar Menú</h2>
+          </div>
+          <button
+            disabled={true}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed font-medium"
+          >
+            <LockClosedIcon className="w-4 h-4" />
+            <PlusIcon className="w-4 h-4" />
+            Agregar Menú
+          </button>
         </div>
         
         <p className="text-sm text-gray-600 mb-6">
-          Controla la disponibilidad de tu menú para los clientes
+          Gestiona tus menús existentes y controla su disponibilidad para los clientes
         </p>
 
         {menus.length > 0 ? (
           <div className="space-y-4">
             {menus.map((menu) => (
-              <div key={menu.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-900">
-                    {menu.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {menu.active 
-                      ? 'Visible para los clientes' 
-                      : 'No disponible públicamente'
-                    }
-                  </p>
-                </div>
-                <div className="flex items-center">
-                  <button
-                    onClick={() => handleToggleMenu(menu)}
-                    disabled={saving}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      menu.active ? 'bg-[#111827]' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        menu.active ? 'translate-x-6' : 'translate-x-1'
+              <div key={menu.id} className="border border-gray-200 rounded-lg p-4 bg-white">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-base font-semibold text-gray-900">
+                        {menu.title}
+                      </h3>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        menu.active 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {menu.active ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </div>
+                    
+                    {menu.description && (
+                      <p className="text-sm text-gray-600 mb-3">
+                        {menu.description}
+                      </p>
+                    )}
+                    
+                    <p className="text-xs text-gray-500">
+                      {menu.active 
+                        ? 'Los clientes pueden ver este menú' 
+                        : 'Este menú no está disponible públicamente'
+                      }
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center ml-4">
+                    <button
+                      onClick={() => handleToggleMenu(menu)}
+                      disabled={saving}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        menu.active ? 'bg-[#111827]' : 'bg-gray-200'
                       }`}
-                    />
-                  </button>
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          menu.active ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -323,7 +391,7 @@ export default function Menu() {
       </div>
 
       {/* QR Code Section */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div id="qr-section" className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex items-center gap-2 mb-4">
           <QrCodeIcon className="w-5 h-5 text-gray-600" />
           <h2 className="text-lg font-semibold text-gray-900">Código QR para Imprimir</h2>
@@ -343,7 +411,7 @@ export default function Menu() {
             </p>
           </div>
           <button
-            onClick={() => setShowQRGenerator(true)}
+            onClick={() => setShowQROptions(true)}
             className="px-4 py-2 bg-[#111827] text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
           >
             Generar QR
@@ -369,13 +437,23 @@ export default function Menu() {
         variant="danger"
       />
 
-      <QRGenerator
-        isOpen={showQRGenerator}
-        onClose={() => setShowQRGenerator(false)}
-        restaurantId={restaurantId}
-        restaurantName={restaurant?.name || ''}
-        restaurantLogo={restaurant?.logo || null}
+      <QROptionsDialog
+        isOpen={showQROptions}
+        onClose={() => setShowQROptions(false)}
+        onSelectOption={handleQROptionSelect}
       />
+
+      {qrOptions && (
+        <QRGeneratorNew
+          isOpen={showQRGenerator}
+          onClose={handleCloseQR}
+          onBack={handleBackToOptions}
+          restaurantId={restaurantId}
+          restaurantName={restaurant?.name || ''}
+          restaurantLogo={restaurant?.logo || null}
+          options={qrOptions}
+        />
+      )}
     </div>
   )
 }

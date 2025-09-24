@@ -34,8 +34,8 @@ import {
  * @param {string} title - Dialog title (required)
  * @param {string} description - Optional description text
  * @param {string} icon - Icon type: 'success', 'error', 'warning', 'info'
- * @param {object} primaryButton - Primary button config: { text, onClick, variant }
- * @param {object} secondaryButton - Secondary button config: { text, onClick, variant }
+ * @param {object} primaryButton - Primary button config: { text, onClick, variant, isLoading, disabled }
+ * @param {object} secondaryButton - Secondary button config: { text, onClick, variant, disabled }
  * @param {string} size - Dialog size: 'sm', 'md', 'lg'
  */
 export default function Dialog({
@@ -184,7 +184,8 @@ export default function Dialog({
               {secondaryButton && (
                 <button
                   onClick={secondaryButton.onClick}
-                  className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors ${getButtonVariantClasses(secondaryButton.variant)}`}
+                  disabled={secondaryButton.disabled}
+                  className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${getButtonVariantClasses(secondaryButton.variant)}`}
                 >
                   {secondaryButton.text}
                 </button>
@@ -192,9 +193,14 @@ export default function Dialog({
               {primaryButton && (
                 <button
                   onClick={primaryButton.onClick}
-                  className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors ${getButtonVariantClasses(primaryButton.variant || 'primary')}`}
+                  disabled={primaryButton.disabled}
+                  className={`w-full sm:w-auto px-4 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center ${getButtonVariantClasses(primaryButton.variant || 'primary')}`}
                 >
-                  {primaryButton.text}
+                  {primaryButton.isLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    primaryButton.text
+                  )}
                 </button>
               )}
             </div>

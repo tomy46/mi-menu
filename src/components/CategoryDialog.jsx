@@ -14,6 +14,7 @@ export default function CategoryDialog({
     tag: '',
     active: true
   })
+  const [saving, setSaving] = useState(false)
 
   // Reset form when dialog opens/closes or category changes
   useEffect(() => {
@@ -36,16 +37,23 @@ export default function CategoryDialog({
     }
   }, [isOpen, category])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.name.trim()) return
     
-    onSave({
-      ...form,
-      name: form.name.trim(),
-      description: form.description.trim(),
-      tag: form.tag.trim()
-    })
+    setSaving(true)
+    try {
+      await onSave({
+        ...form,
+        name: form.name.trim(),
+        description: form.description.trim(),
+        tag: form.tag.trim()
+      })
+    } catch (error) {
+      console.error('Error saving category:', error)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleClose = () => {
@@ -164,12 +172,16 @@ export default function CategoryDialog({
             
             <button
               type="submit"
-              disabled={!form.name.trim()}
-              className={`px-4 py-2 text-sm font-medium text-white bg-[#111827] rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors ${
+              disabled={!form.name.trim() || saving}
+              className={`px-4 py-2 text-sm font-medium text-white bg-[#111827] rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center ${
                 category && onDelete ? 'flex-1' : 'w-full'
               }`}
             >
-              {category ? 'Guardar' : 'Crear'}
+              {saving ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                category ? 'Guardar' : 'Crear'
+              )}
             </button>
           </div>
         </form>

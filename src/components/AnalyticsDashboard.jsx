@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import { 
   getRestaurantStats, 
   getViewStats, 
-  getMenuStats 
+  getMenuStats,
+  getUniqueVisitStats,
+  getTableStats
 } from '../services/firestore.js'
 import { 
   ChartBarIcon, 
@@ -12,19 +14,26 @@ import {
   FolderIcon,
   CalendarIcon,
   ArrowTrendingUpIcon,
-  ClockIcon
+  ClockIcon,
+  UserGroupIcon,
+  TableCellsIcon
 } from '@heroicons/react/24/outline'
 import { PLAN_LIMITS, SUBSCRIPTION_PLANS } from '../config/subscriptionPlans.js'
 
 export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 'start' }) {
   const [stats, setStats] = useState(null)
   const [viewStats, setViewStats] = useState(null)
+  const [uniqueVisitStats, setUniqueVisitStats] = useState(null)
+  const [tableStats, setTableStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [selectedPeriod, setSelectedPeriod] = useState(30) // días
   
   // Check if analytics are available for this plan
   const planConfig = PLAN_LIMITS[subscriptionPlan] || PLAN_LIMITS[SUBSCRIPTION_PLANS.START]
-  const analyticsEnabled = subscriptionPlan === 'pro' || subscriptionPlan === 'enterprise'
+  const analyticsEnabled = true // Temporalmente habilitado para todos los planes durante desarrollo
+  // const analyticsEnabled = subscriptionPlan === 'pro' || subscriptionPlan === 'enterprise'
+  
+  console.log('AnalyticsDashboard - subscriptionPlan:', subscriptionPlan, 'analyticsEnabled:', analyticsEnabled)
   
   useEffect(() => {
     if (!analyticsEnabled) {
@@ -39,16 +48,38 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
     try {
       setLoading(true)
       
+      console.log('Loading analytics for restaurant:', restaurantId, 'period:', selectedPeriod)
+      
       // Load restaurant stats (cached, optimized for frequent reads)
       const statsResult = await getRestaurantStats(restaurantId)
       if (statsResult.success) {
         setStats(statsResult.data)
+        console.log('Restaurant stats loaded:', statsResult.data)
       }
       
       // Load view stats for selected period
       const viewsResult = await getViewStats(restaurantId, null, selectedPeriod)
       if (viewsResult.success) {
         setViewStats(viewsResult.data)
+        console.log('View stats loaded:', viewsResult.data)
+      }
+      
+      // Load unique visit stats
+      const uniqueVisitsResult = await getUniqueVisitStats(restaurantId, null, selectedPeriod)
+      if (uniqueVisitsResult.success) {
+        setUniqueVisitStats(uniqueVisitsResult.data)
+        console.log('Unique visit stats loaded:', uniqueVisitsResult.data)
+      } else {
+        console.log('Unique visit stats failed:', uniqueVisitsResult.error)
+      }
+      
+      // Load table stats
+      const tableStatsResult = await getTableStats(restaurantId, selectedPeriod)
+      if (tableStatsResult.success) {
+        setTableStats(tableStatsResult.data)
+        console.log('Table stats loaded:', tableStatsResult.data)
+      } else {
+        console.log('Table stats failed:', tableStatsResult.error)
       }
       
     } catch (error) {
@@ -69,6 +100,15 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
   
   const formatNumber = (num) => {
     return new Intl.NumberFormat('es-AR').format(num)
+  }
+  
+  const formatDateWithWeekday = (dateString) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('es-AR', { 
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    })
   }
   
   if (!analyticsEnabled) {
@@ -106,8 +146,8 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
     return (
       <div className="space-y-6">
         {/* Loading skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map(i => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+          {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="bg-white rounded-lg border border-gray-200 p-6">
               <div className="animate-pulse">
                 <div className="w-8 h-8 bg-gray-200 rounded mb-4"></div>
@@ -147,7 +187,7 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
       </div>
       
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         {/* Average Price */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
@@ -220,6 +260,24 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
             {viewStats?.avgViewsPerDay ? `${viewStats.avgViewsPerDay.toFixed(1)} promedio/día` : 'Sin datos'}
           </p>
         </div>
+        
+        {/* Unique Visits */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Visitas Únicas</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {uniqueVisitStats?.totalUniqueVisits ? formatNumber(uniqueVisitStats.totalUniqueVisits) : '0'}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+              <UserGroupIcon className="w-6 h-6 text-indigo-600" />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            {uniqueVisitStats?.avgUniqueVisitsPerDay ? `${uniqueVisitStats.avgUniqueVisitsPerDay.toFixed(1)} promedio/día` : 'Sin datos'}
+          </p>
+        </div>
       </div>
       
       {/* Views Chart */}
@@ -241,11 +299,8 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
               
               return (
                 <div key={stat.date} className="flex items-center gap-4">
-                  <div className="w-20 text-sm text-gray-600 font-mono">
-                    {new Date(stat.date).toLocaleDateString('es-AR', { 
-                      month: 'short', 
-                      day: 'numeric' 
-                    })}
+                  <div className="w-24 text-sm text-gray-600 font-mono">
+                    {formatDateWithWeekday(stat.date)}
                   </div>
                   <div className="flex-1 bg-gray-100 rounded-full h-6 relative">
                     <div 
@@ -274,30 +329,61 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
         </div>
       )}
       
-      {/* Tips for improving analytics */}
-      <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
-        <h3 className="text-lg font-semibold text-blue-900 mb-3">
-          💡 Consejos para mejorar tus métricas
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
-          <div>
-            <strong>Aumentar visitas:</strong>
-            <ul className="mt-1 space-y-1 text-blue-700">
-              <li>• Comparte tu código QR en redes sociales</li>
-              <li>• Coloca códigos QR en mesas y entrada</li>
-              <li>• Incluye el enlace en tu perfil de Instagram</li>
-            </ul>
+      {/* Table Stats */}
+      {tableStats?.tableStats && tableStats.tableStats.length > 0 && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <TableCellsIcon className="w-5 h-5 text-gray-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Escaneos por Mesa</h3>
+            </div>
+            <div className="flex items-center gap-4 text-sm text-gray-500">
+              <span>{tableStats.totalTables} mesas activas</span>
+              <span>•</span>
+              <span>{formatNumber(tableStats.totalTableScans)} escaneos totales</span>
+            </div>
           </div>
-          <div>
-            <strong>Optimizar precios:</strong>
-            <ul className="mt-1 space-y-1 text-blue-700">
-              <li>• Revisa el precio promedio vs competencia</li>
-              <li>• Considera ofertas para productos populares</li>
-              <li>• Actualiza precios según temporada</li>
-            </ul>
+          
+          {/* Table stats grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
+            {tableStats.tableStats.map((table) => {
+              const maxScans = Math.max(...tableStats.tableStats.map(t => t.scans))
+              const percentage = maxScans > 0 ? (table.scans / maxScans) * 100 : 0
+              
+              return (
+                <div key={table.tableNumber} className="bg-gray-50 rounded-lg p-3 text-center">
+                  <div className="text-lg font-bold text-gray-900 mb-1">
+                    Mesa {table.tableNumber}
+                  </div>
+                  <div className="text-2xl font-bold text-blue-600 mb-2">
+                    {table.scans}
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.max(percentage, 5)}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {maxScans > 0 ? `${Math.round(percentage)}%` : '0%'}
+                  </div>
+                </div>
+              )
+            })}
           </div>
+          
+          {tableStats.avgScansPerTable > 0 && (
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-2 text-sm text-blue-800">
+                <ArrowTrendingUpIcon className="w-4 h-4" />
+                <span>
+                  Promedio: {tableStats.avgScansPerTable.toFixed(1)} escaneos por mesa
+                </span>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   )
 }

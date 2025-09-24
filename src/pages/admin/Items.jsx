@@ -58,6 +58,7 @@ export default function Items({ onItemsChange }) {
   const [deleteDialog, setDeleteDialog] = useState({ isOpen: false, itemId: null, itemName: '' })
   const [upgradePrompt, setUpgradePrompt] = useState({ isOpen: false, limitCheck: null })
   const [restaurant, setRestaurant] = useState(null)
+  const [deletingItemId, setDeletingItemId] = useState(null)
   const { snackbar, showError, showSuccess } = useSnackbar()
 
   // Drag and drop sensors with better mobile support
@@ -206,20 +207,36 @@ export default function Items({ onItemsChange }) {
 
   async function confirmDelete() {
     if (deleteDialog.itemId) {
-      await deleteItem(deleteDialog.itemId)
-      showSuccess('Producto eliminado exitosamente')
-      await loadItems()
-      await loadAllItems()
-      
-      // Update analytics stats
-      refreshRestaurantStats(restaurantId).catch(error => {
-        console.warn('Failed to update analytics:', error)
-      })
-      
-      // Dispatch event for dashboard update
-      window.dispatchEvent(new CustomEvent('dashboardUpdate'))
+      setDeletingItemId(deleteDialog.itemId)
+      try {
+        await deleteItem(deleteDialog.itemId)
+        
+        // Close both dialogs
+        setDeleteDialog({ isOpen: false, itemId: null, itemName: '' })
+        setEditingItem(null)
+        
+        // Show success message with primary button color
+        showSuccess('Producto eliminado exitosamente')
+        
+        await loadItems()
+        await loadAllItems()
+        
+        // Update analytics stats
+        refreshRestaurantStats(restaurantId).catch(error => {
+          console.warn('Failed to update analytics:', error)
+        })
+        
+        // Dispatch event for dashboard update
+        window.dispatchEvent(new CustomEvent('dashboardUpdate'))
+      } catch (error) {
+        console.error('Error deleting item:', error)
+        showError('Error al eliminar el producto')
+      } finally {
+        setDeletingItemId(null)
+      }
+    } else {
+      setDeleteDialog({ isOpen: false, itemId: null, itemName: '' })
     }
-    setDeleteDialog({ isOpen: false, itemId: null, itemName: '' })
   }
 
   async function onToggleAvailable(it) {
@@ -347,6 +364,7 @@ export default function Items({ onItemsChange }) {
             handleDeleteClick(editingItem.id, editingItem.name)
             setEditingItem(null)
           }}
+          isDeleting={deletingItemId === editingItem.id}
         />
       )}
 
@@ -373,6 +391,7 @@ export default function Items({ onItemsChange }) {
         confirmText="Eliminar"
         cancelText="Cancelar"
         variant="danger"
+        isLoading={deletingItemId === deleteDialog.itemId}
       />
 
       <Snackbar
@@ -484,7 +503,7 @@ function SortableItemCard({ item, onEdit }) {
 }
 
 // Item detail modal component
-function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete }) {
+function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete, isDeleting = false }) {
   const [name, setName] = useState(item.name)
   const [description, setDescription] = useState(item.description || '')
   const [price, setPrice] = useState(formatPriceDisplay(item.price || 0))
@@ -522,7 +541,7 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
   }
 
   function handleDelete() {
-    onDelete()
+    onDelete() // This will trigger the confirmation dialog
   }
 
   return (
@@ -637,14 +656,18 @@ function ItemDetailModal({ item, onClose, onSave, onToggleAvailable, onDelete })
         <div className="flex gap-3 p-6 border-t border-gray-200">
           <button
             onClick={handleDelete}
-            disabled={saving}
-            className="flex-1 bg-red-50 text-red-700 rounded-lg py-2 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={saving || isDeleting}
+            className="flex-1 bg-red-50 text-red-700 rounded-lg py-2 text-sm font-medium hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
-            Eliminar
+            {isDeleting ? (
+              <div className="w-4 h-4 border-2 border-red-700 border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              'Eliminar'
+            )}
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || isDeleting}
             className="flex-1 bg-[#111827] text-white rounded-lg py-2 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           >
             {saving ? (
