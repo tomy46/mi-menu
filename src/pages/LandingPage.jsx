@@ -156,9 +156,10 @@ const LandingPage = () => {
       {/* AppBar */}
       <nav className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
+          <div className="flex justify-between items-center h-20">
+            <div className="flex flex-col">
               <h1 className="text-2xl font-bold text-[#111827]">Mi Menú</h1>
+              <p className="text-sm text-gray-600">Crea tu carta digital con QR en 3 minutos</p>
             </div>
             <Link
               to="/login"
@@ -172,10 +173,10 @@ const LandingPage = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-stretch">
           
           {/* Left Column - Wizard */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
             {/* Progress Indicator */}
             <div className="mb-8">
               <div className="flex items-center justify-between mb-2">
@@ -184,7 +185,7 @@ const LandingPage = () => {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <motion.div
-                  className="bg-[#FF7A00] h-2 rounded-full"
+                  className="bg-[#111827] h-2 rounded-full"
                   initial={{ width: '25%' }}
                   animate={{ width: `${(currentStep / 4) * 100}%` }}
                   transition={{ duration: 0.3 }}
@@ -210,7 +211,7 @@ const LandingPage = () => {
                       placeholder="Ej: Café Central, Pizzería Roma..."
                       value={formData.storeName}
                       onChange={(e) => handleInputChange('storeName', e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF7A00] focus:border-transparent text-lg"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#111827] focus:border-transparent text-lg"
                       autoFocus
                     />
                   </motion.div>
@@ -233,7 +234,7 @@ const LandingPage = () => {
                           onClick={() => handleCategorySelect(category)}
                           className={`p-3 rounded-lg border-2 transition-all text-left ${
                             formData.category === category
-                              ? 'border-[#FF7A00] bg-orange-50 text-[#FF7A00]'
+                              ? 'border-[#111827] bg-gray-50 text-[#111827]'
                               : 'border-gray-200 hover:border-gray-300'
                           }`}
                         >
@@ -247,7 +248,7 @@ const LandingPage = () => {
                         placeholder="Escribe tu categoría..."
                         value={formData.customCategory}
                         onChange={(e) => handleInputChange('customCategory', e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF7A00] focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#111827] focus:border-transparent"
                         autoFocus
                       />
                     )}
@@ -270,14 +271,14 @@ const LandingPage = () => {
                         placeholder="Nombre del producto"
                         value={formData.productName}
                         onChange={(e) => handleInputChange('productName', e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF7A00] focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#111827] focus:border-transparent"
                       />
                       <input
                         type="text"
                         placeholder="Precio (ej: $1500)"
                         value={formData.productPrice}
                         onChange={(e) => handleInputChange('productPrice', e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF7A00] focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#111827] focus:border-transparent"
                       />
                     </div>
                   </motion.div>
@@ -299,14 +300,14 @@ const LandingPage = () => {
                         placeholder="Tu email"
                         value={formData.email}
                         onChange={(e) => handleInputChange('email', e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF7A00] focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#111827] focus:border-transparent"
                       />
                       <input
                         type="password"
                         placeholder="Contraseña"
                         value={formData.password}
                         onChange={(e) => handleInputChange('password', e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#FF7A00] focus:border-transparent"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#111827] focus:border-transparent"
                       />
                     </div>
                   </motion.div>
@@ -322,7 +323,7 @@ const LandingPage = () => {
                   disabled={!canProceed()}
                   className={`w-full flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all ${
                     canProceed()
-                      ? 'bg-[#FF7A00] text-white hover:bg-orange-600'
+                      ? 'bg-[#111827] text-white hover:bg-gray-800'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
@@ -335,7 +336,7 @@ const LandingPage = () => {
                   disabled={!canProceed() || isLoading}
                   className={`w-full flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all ${
                     canProceed() && !isLoading
-                      ? 'bg-[#FF7A00] text-white hover:bg-orange-600'
+                      ? 'bg-[#111827] text-white hover:bg-gray-800'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
@@ -346,10 +347,10 @@ const LandingPage = () => {
           </div>
 
           {/* Right Column - Preview */}
-          <div className="flex justify-center">
+          <div className="flex justify-center items-center h-full">
             <div className="relative">
               {/* Phone mockup */}
-              <div className="w-80 h-[640px] bg-black rounded-[3rem] p-2 shadow-2xl">
+              <div className="w-80 h-full max-h-[640px] bg-black rounded-[3rem] p-2 shadow-2xl">
                 <div className="w-full h-full rounded-[2.5rem] overflow-hidden" style={{ backgroundColor: '#F5F0E8' }}>
                   {/* Menu Preview */}
                   <div className="p-6 h-full overflow-y-auto" style={{ fontFamily: 'Poppins, sans-serif' }}>
