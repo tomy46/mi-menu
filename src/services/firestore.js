@@ -577,13 +577,13 @@ export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = tr
     updatedAt: serverTimestamp(),
   })
   
-  // Create default main menu
+  // Create default main menu (always active by default)
   const menuRef = await addDoc(colMenus(), {
     restaurantId: restaurantRef.id,
     title: 'Carta Principal',
     type: 'main',
     description: 'Menú principal del restaurante',
-    active: true,
+    active: true, // Always create menu as active by default
     deleted: false,
     order: 0,
     createdAt: serverTimestamp(),
@@ -605,7 +605,7 @@ export async function createRestaurantFromWizard({
   const { restaurantId, menuId } = await createRestaurantWithDefaultMenu({
     uid,
     name: storeName,
-    isPublic: false // Start as private until user makes it public
+    isPublic: true // Start as public by default with active menu
   })
 
   // Create the category
