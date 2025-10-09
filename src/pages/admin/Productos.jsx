@@ -5,7 +5,7 @@ import {
   Squares2X2Icon,
   ShoppingBagIcon
 } from '@heroicons/react/24/outline'
-import { getCategories, getItems, getActiveMenuByRestaurant } from '../../services/firestore.js'
+import { getAllCategories, getItems, getActiveMenuByRestaurant } from '../../services/firestore.js'
 import Categories from './Categories.jsx'
 import Items from './Items.jsx'
 
@@ -24,7 +24,7 @@ export default function Productos() {
         
         if (menu) {
           const [categoriesData, itemsData] = await Promise.all([
-            getCategories(menu.id),
+            getAllCategories(menu.id),
             getItems(restaurantId)
           ])
           

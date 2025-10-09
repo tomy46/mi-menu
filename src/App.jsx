@@ -9,7 +9,8 @@ import Register from './pages/auth/Register.jsx'
 
 // Public pages
 import LandingPage from './pages/LandingPage.jsx'
-import PublicMenu from './pages/public/PublicMenu.jsx'
+import PublicMenuNew from './pages/public/PublicMenuNew.jsx'
+import PublicMenuBySlug from './pages/public/PublicMenuBySlug.jsx'
 
 // Admin pages
 import AdminLayout from './pages/admin/AdminLayout.jsx'
@@ -37,7 +38,11 @@ function App() {
       <Route path="/auth/register" element={<Register />} />
 
       {/* Public menu */}
-      <Route path="/r/:restaurantId" element={<PublicMenu />} />
+      <Route path="/r/:restaurantId" element={<PublicMenuNew />} />
+      
+      {/* Public menu by slug */}
+      <Route path="/:restaurantSlug" element={<PublicMenuBySlug />} />
+      <Route path="/:restaurantSlug/:menuSlug" element={<PublicMenuBySlug />} />
 
       {/* Admin (protected) */}
       <Route element={<ProtectedRoute />}>

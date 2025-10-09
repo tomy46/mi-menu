@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createItem, deleteItem, getActiveMenuByRestaurant, getCategories, getItemsByCategory, getItems, updateItem, reorderItems, checkSubscriptionLimit, refreshRestaurantStats } from '../../services/firestore.js'
+import { createItem, deleteItem, getActiveMenuByRestaurant, getAllCategories, getItemsByCategory, getItems, updateItem, reorderItems, checkSubscriptionLimit, refreshRestaurantStats } from '../../services/firestore.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Snackbar from '../../components/Snackbar.jsx'
 import UpgradePrompt from '../../components/UpgradePrompt.jsx'
@@ -79,7 +79,7 @@ export default function Items({ onItemsChange }) {
     try {
       const m = await getActiveMenuByRestaurant(restaurantId)
       if (m) setMenuId(m.id)
-      const cats = m ? await getCategories(m.id) : []
+      const cats = m ? await getAllCategories(m.id) : []
       setCategories(cats)
       if (cats.length > 0 && !categoryId) setCategoryId(cats[0].id)
     } finally {

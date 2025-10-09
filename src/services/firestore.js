@@ -14,10 +14,12 @@ import {
   setDoc,
   limit,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore'
 import { SUBSCRIPTION_PLANS, SUBSCRIPTION_STATUS } from '../config/subscriptionPlans'
 import { ANALYTICS_EVENTS, STATS_TYPES, AGGREGATION_CONFIG } from '../config/analytics'
 import { createMultiLanguageField, DEFAULT_LANGUAGE, migrateToMultiLanguage } from '../config/languages'
+import { normalizeSlug, validateSlug, generateUniqueSlug } from '../utils/slugUtils'
 
 // Collections
 export const colRestaurants = () => collection(db, 'restaurants')
@@ -30,6 +32,8 @@ export const colTeamMembers = () => collection(db, 'teamMembers')
 export const colAnalyticsEvents = () => collection(db, 'analyticsEvents')
 export const colAnalyticsStats = () => collection(db, 'analyticsStats')
 export const colAnalyticsVisitStats = () => collection(db, 'analyticsVisitStats')
+export const colSlugRegistry = () => collection(db, 'slug_registry')
+export const colMenuSlugRegistry = (restaurantId) => collection(db, 'restaurants', restaurantId, 'menu_slug_registry')
 
 // Restaurant helpers
 export async function getRestaurant(id) {
@@ -86,31 +90,271 @@ export async function getFirstOwnedRestaurant(uid) {
   return null
 }
 
-// Get restaurant by slug
-export async function getRestaurantBySlug(slug) {
+// ============================================================================
+// SLUG MANAGEMENT FUNCTIONS
+// ============================================================================
+
+/**
+ * Verifica si un slug de restaurante está disponible
+ * @param {string} normalizedSlug - El slug normalizado a verificar
+ * @param {string} excludeRestaurantId - ID del restaurante a excluir (para ediciones)
+ * @returns {Promise<boolean>} - True si está disponible
+ */
+export async function isRestaurantSlugAvailable(normalizedSlug, excludeRestaurantId = null) {
   try {
-    const q = query(colRestaurants(), where('slug', '==', slug), where('isPublic', '==', true), limit(1))
-    const snaps = await getDocs(q)
-    if (!snaps.empty) {
-      const d = snaps.docs[0]
-      return { id: d.id, ...d.data() }
+    const slugDoc = await getDoc(doc(colSlugRegistry(), normalizedSlug));
+    
+    if (!slugDoc.exists()) {
+      return true; // Slug disponible
     }
-  } catch (e) {
-    console.error('Error getting restaurant by slug:', e)
+    
+    const data = slugDoc.data();
+    // Si existe pero es del mismo restaurante que estamos editando, está disponible
+    return excludeRestaurantId && data.restaurantId === excludeRestaurantId;
+  } catch (error) {
+    console.error('Error checking slug availability:', error);
+    return false;
   }
-  return null
 }
 
-// Generate slug from name
-export function generateSlug(name) {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove accents
-    .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
-    .trim()
-    .replace(/\s+/g, '-') // Replace spaces with hyphens
-    .replace(/-+/g, '-') // Replace multiple hyphens with single
+/**
+ * Verifica si un slug de menú está disponible dentro de un restaurante
+ * @param {string} restaurantId - ID del restaurante
+ * @param {string} normalizedSlug - El slug normalizado a verificar
+ * @param {string} excludeMenuId - ID del menú a excluir (para ediciones)
+ * @returns {Promise<boolean>} - True si está disponible
+ */
+export async function isMenuSlugAvailable(restaurantId, normalizedSlug, excludeMenuId = null) {
+  try {
+    const slugDoc = await getDoc(doc(colMenuSlugRegistry(restaurantId), normalizedSlug));
+    
+    if (!slugDoc.exists()) {
+      return true; // Slug disponible
+    }
+    
+    const data = slugDoc.data();
+    // Si existe pero es del mismo menú que estamos editando, está disponible
+    return excludeMenuId && data.menuId === excludeMenuId;
+  } catch (error) {
+    console.error('Error checking menu slug availability:', error);
+    return false;
+  }
+}
+
+/**
+ * Obtiene un restaurante por su slug normalizado
+ * @param {string} slug - El slug a buscar (se normalizará automáticamente)
+ * @returns {Promise<Object|null>} - El restaurante encontrado o null
+ */
+export async function getRestaurantBySlug(slug) {
+  try {
+    const normalizedSlug = normalizeSlug(slug);
+    const slugDoc = await getDoc(doc(colSlugRegistry(), normalizedSlug));
+    
+    if (!slugDoc.exists()) {
+      return null;
+    }
+    
+    const { restaurantId } = slugDoc.data();
+    const restaurant = await getRestaurant(restaurantId);
+    
+    // Verificar que el restaurante existe y es público
+    if (!restaurant || !restaurant.isPublic) {
+      return null;
+    }
+    
+    return restaurant;
+  } catch (error) {
+    console.error('Error getting restaurant by slug:', error);
+    return null;
+  }
+}
+
+/**
+ * Obtiene un menú por su slug dentro de un restaurante
+ * @param {string} restaurantId - ID del restaurante
+ * @param {string} slug - El slug del menú a buscar
+ * @returns {Promise<Object|null>} - El menú encontrado o null
+ */
+export async function getMenuBySlug(restaurantId, slug) {
+  try {
+    const normalizedSlug = normalizeSlug(slug);
+    const slugDoc = await getDoc(doc(colMenuSlugRegistry(restaurantId), normalizedSlug));
+    
+    if (!slugDoc.exists()) {
+      return null;
+    }
+    
+    const { menuId } = slugDoc.data();
+    const menu = await getMenu(menuId);
+    
+    // Verificar que el menú existe, está activo y no está eliminado
+    if (!menu || !menu.active || menu.deleted) {
+      return null;
+    }
+    
+    return menu;
+  } catch (error) {
+    console.error('Error getting menu by slug:', error);
+    return null;
+  }
+}
+
+/**
+ * Crea o actualiza el registro de slug de un restaurante usando transacción
+ * @param {string} restaurantId - ID del restaurante
+ * @param {string} slug - El slug original
+ * @param {string} normalizedSlug - El slug normalizado
+ * @param {string} oldNormalizedSlug - El slug anterior (para actualizaciones)
+ * @returns {Promise<void>}
+ */
+export async function updateRestaurantSlugRegistry(restaurantId, slug, normalizedSlug, oldNormalizedSlug = null) {
+  await runTransaction(db, async (transaction) => {
+    // Verificar disponibilidad del nuevo slug
+    const newSlugRef = doc(colSlugRegistry(), normalizedSlug);
+    const newSlugDoc = await transaction.get(newSlugRef);
+    
+    if (newSlugDoc.exists()) {
+      const data = newSlugDoc.data();
+      if (data.restaurantId !== restaurantId) {
+        throw new Error('El slug ya está en uso por otro restaurante');
+      }
+    }
+    
+    // Si hay un slug anterior diferente, eliminarlo
+    if (oldNormalizedSlug && oldNormalizedSlug !== normalizedSlug) {
+      const oldSlugRef = doc(colSlugRegistry(), oldNormalizedSlug);
+      transaction.delete(oldSlugRef);
+    }
+    
+    // Crear/actualizar el nuevo registro de slug
+    transaction.set(newSlugRef, {
+      restaurantId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    
+    // Actualizar el restaurante con los nuevos slugs
+    const restaurantRef = doc(colRestaurants(), restaurantId);
+    transaction.update(restaurantRef, {
+      slug,
+      normalized_slug: normalizedSlug,
+      updatedAt: serverTimestamp()
+    });
+  });
+}
+
+/**
+ * Crea o actualiza el registro de slug de un menú usando transacción
+ * @param {string} restaurantId - ID del restaurante
+ * @param {string} menuId - ID del menú
+ * @param {string} slug - El slug original
+ * @param {string} normalizedSlug - El slug normalizado
+ * @param {string} oldNormalizedSlug - El slug anterior (para actualizaciones)
+ * @returns {Promise<void>}
+ */
+export async function updateMenuSlugRegistry(restaurantId, menuId, slug, normalizedSlug, oldNormalizedSlug = null) {
+  await runTransaction(db, async (transaction) => {
+    // Verificar disponibilidad del nuevo slug
+    const newSlugRef = doc(colMenuSlugRegistry(restaurantId), normalizedSlug);
+    const newSlugDoc = await transaction.get(newSlugRef);
+    
+    if (newSlugDoc.exists()) {
+      const data = newSlugDoc.data();
+      if (data.menuId !== menuId) {
+        throw new Error('El slug ya está en uso por otro menú en este restaurante');
+      }
+    }
+    
+    // Si hay un slug anterior diferente, eliminarlo
+    if (oldNormalizedSlug && oldNormalizedSlug !== normalizedSlug) {
+      const oldSlugRef = doc(colMenuSlugRegistry(restaurantId), oldNormalizedSlug);
+      transaction.delete(oldSlugRef);
+    }
+    
+    // Crear/actualizar el nuevo registro de slug
+    transaction.set(newSlugRef, {
+      menuId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    
+    // Actualizar el menú con los nuevos slugs
+    const menuRef = doc(colMenus(), menuId);
+    transaction.update(menuRef, {
+      slug,
+      normalized_slug: normalizedSlug,
+      updatedAt: serverTimestamp()
+    });
+  });
+}
+
+/**
+ * Elimina el registro de slug de un restaurante
+ * @param {string} normalizedSlug - El slug normalizado a eliminar
+ * @returns {Promise<void>}
+ */
+export async function deleteRestaurantSlugRegistry(normalizedSlug) {
+  try {
+    await deleteDoc(doc(colSlugRegistry(), normalizedSlug));
+  } catch (error) {
+    console.error('Error deleting restaurant slug registry:', error);
+    throw error;
+  }
+}
+
+/**
+ * Elimina el registro de slug de un menú
+ * @param {string} restaurantId - ID del restaurante
+ * @param {string} normalizedSlug - El slug normalizado a eliminar
+ * @returns {Promise<void>}
+ */
+export async function deleteMenuSlugRegistry(restaurantId, normalizedSlug) {
+  try {
+    await deleteDoc(doc(colMenuSlugRegistry(restaurantId), normalizedSlug));
+  } catch (error) {
+    console.error('Error deleting menu slug registry:', error);
+    throw error;
+  }
+}
+
+/**
+ * Genera un slug único para un restaurante
+ * @param {string} name - Nombre del restaurante
+ * @param {string} excludeRestaurantId - ID del restaurante a excluir (para ediciones)
+ * @returns {Promise<{slug: string, normalizedSlug: string}>}
+ */
+export async function generateUniqueRestaurantSlug(name, excludeRestaurantId = null) {
+  const checkExists = async (slug) => {
+    const normalizedSlug = normalizeSlug(slug);
+    return !(await isRestaurantSlugAvailable(normalizedSlug, excludeRestaurantId));
+  };
+  
+  const uniqueSlug = await generateUniqueSlug(name, checkExists);
+  return {
+    slug: uniqueSlug,
+    normalizedSlug: normalizeSlug(uniqueSlug)
+  };
+}
+
+/**
+ * Genera un slug único para un menú dentro de un restaurante
+ * @param {string} restaurantId - ID del restaurante
+ * @param {string} title - Título del menú
+ * @param {string} excludeMenuId - ID del menú a excluir (para ediciones)
+ * @returns {Promise<{slug: string, normalizedSlug: string}>}
+ */
+export async function generateUniqueMenuSlug(restaurantId, title, excludeMenuId = null) {
+  const checkExists = async (slug) => {
+    const normalizedSlug = normalizeSlug(slug);
+    return !(await isMenuSlugAvailable(restaurantId, normalizedSlug, excludeMenuId));
+  };
+  
+  const uniqueSlug = await generateUniqueSlug(title, checkExists);
+  return {
+    slug: uniqueSlug,
+    normalizedSlug: normalizeSlug(uniqueSlug)
+  };
 }
 
 // Query helpers
@@ -154,10 +398,19 @@ export async function getMenuByType(restaurantId, menuType) {
   return docs[0] || null
 }
 
-export async function getCategories(menuId) {
+// Get all categories (for admin use)
+export async function getAllCategories(menuId) {
   const q = query(colCategories(), where('menuId', '==', menuId), orderBy('order', 'asc'))
   const snaps = await getDocs(q)
   return snaps.docs.map((d) => ({ id: d.id, ...d.data() }))
+}
+
+// Get only active categories (for public menu)
+export async function getCategories(menuId) {
+  const q = query(colCategories(), where('menuId', '==', menuId), orderBy('order', 'asc'))
+  const snaps = await getDocs(q)
+  // Filter only active categories for public menu
+  return snaps.docs.map((d) => ({ id: d.id, ...d.data() })).filter(cat => cat.active !== false)
 }
 
 export async function getItemsByCategory(categoryId, { onlyAvailable = false } = {}) {
@@ -169,6 +422,27 @@ export async function getItemsByCategory(categoryId, { onlyAvailable = false } =
   return items
 }
 
+// Get all items for a menu (organized by category)
+export async function getItemsByMenu(menuId) {
+  try {
+    // Get all categories for this menu
+    const categories = await getCategories(menuId)
+    if (categories.length === 0) return {}
+    
+    // Get all items for all categories
+    const itemsByCategory = {}
+    for (const category of categories) {
+      const categoryItems = await getItemsByCategory(category.id)
+      itemsByCategory[category.id] = categoryItems
+    }
+    
+    return itemsByCategory
+  } catch (error) {
+    console.error('Error fetching items by menu:', error)
+    return {}
+  }
+}
+
 export async function getItems(restaurantId, { onlyAvailable = false } = {}) {
   try {
     // First get the menu for this restaurant
@@ -176,7 +450,7 @@ export async function getItems(restaurantId, { onlyAvailable = false } = {}) {
     if (!menu) return []
     
     // Get all categories for this menu
-    const categories = await getCategories(menu.id)
+    const categories = await getAllCategories(menu.id)
     if (categories.length === 0) return []
     
     // Get all items for all categories
@@ -461,16 +735,91 @@ export async function deleteItem(id) {
 
 // Update restaurant
 export async function updateRestaurant(id, data) {
-  // If name is being updated, regenerate slug
-  if (data.name) {
-    data.slug = generateSlug(data.name)
+  // Obtener el restaurante actual para comparar slugs
+  const currentRestaurant = await getRestaurant(id)
+  if (!currentRestaurant) {
+    throw new Error('Restaurante no encontrado')
   }
-  return updateDoc(doc(db, 'restaurants', id), { ...data, updatedAt: serverTimestamp() })
+  
+  let slugChanged = false
+  let newSlug = currentRestaurant.slug
+  let newNormalizedSlug = currentRestaurant.normalized_slug
+  
+  // Si el nombre está siendo actualizado, regenerar slug
+  if (data.name && data.name !== currentRestaurant.name) {
+    const slugData = await generateUniqueRestaurantSlug(data.name, id)
+    newSlug = slugData.slug
+    newNormalizedSlug = slugData.normalizedSlug
+    slugChanged = true
+  }
+  
+  // Si se proporciona un slug personalizado, validarlo y usarlo
+  if (data.slug && data.slug !== currentRestaurant.slug) {
+    const validation = validateSlug(data.slug)
+    if (!validation.isValid) {
+      throw new Error(validation.error)
+    }
+    
+    newSlug = data.slug
+    newNormalizedSlug = normalizeSlug(data.slug)
+    slugChanged = true
+    
+    // Verificar disponibilidad del slug personalizado
+    const isAvailable = await isRestaurantSlugAvailable(newNormalizedSlug, id)
+    if (!isAvailable) {
+      throw new Error('El slug ya está en uso por otro restaurante')
+    }
+  }
+  
+  // Actualizar el documento del restaurante
+  const updateData = {
+    ...data,
+    updatedAt: serverTimestamp()
+  }
+  
+  // Agregar campos de slug si cambiaron
+  if (slugChanged) {
+    updateData.slug = newSlug
+    updateData.normalized_slug = newNormalizedSlug
+  }
+  
+  await updateDoc(doc(db, 'restaurants', id), updateData)
+  
+  // Si el slug cambió, actualizar el registry
+  if (slugChanged) {
+    await updateRestaurantSlugRegistry(
+      id, 
+      newSlug, 
+      newNormalizedSlug, 
+      currentRestaurant.normalized_slug
+    )
+  }
+  
+  return { id, ...currentRestaurant, ...updateData }
 }
 
 // Menu CRUD operations
-export async function createMenu({ restaurantId, title, type = 'main', description = '', active = true, order = 0 }) {
-  return addDoc(colMenus(), {
+export async function createMenu({ restaurantId, title, type = 'main', description = '', active = true, order = 0, slug = null }) {
+  let menuSlug = null
+  let normalizedSlug = null
+  
+  // Si se proporciona un slug, validarlo y usarlo
+  if (slug) {
+    const validation = validateSlug(slug)
+    if (!validation.isValid) {
+      throw new Error(validation.error)
+    }
+    
+    normalizedSlug = normalizeSlug(slug)
+    const isAvailable = await isMenuSlugAvailable(restaurantId, normalizedSlug)
+    if (!isAvailable) {
+      throw new Error('El slug ya está en uso por otro menú en este restaurante')
+    }
+    
+    menuSlug = slug
+  }
+  
+  const menuRef = await addDoc(colMenus(), {
     restaurantId,
     title,
     type, // 'main', 'lunch', 'dinner', 'drinks', 'desserts', etc.
@@ -478,9 +827,18 @@ export async function createMenu({ restaurantId, title, type = 'main', descripti
     active,
     deleted: false,
     order: Number(order) || 0,
+    slug: menuSlug,
+    normalized_slug: normalizedSlug,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+  
+  // Si se creó con slug, registrarlo
+  if (menuSlug && normalizedSlug) {
+    await updateMenuSlugRegistry(restaurantId, menuRef.id, menuSlug, normalizedSlug)
+  }
+  
+  return menuRef
 }
 
 export async function createMenuMultiLang({ 
@@ -517,16 +875,106 @@ export async function createMenuMultiLang({
 }
 
 export async function updateMenu(id, data) {
-  return updateDoc(doc(db, 'menus', id), { ...data, updatedAt: serverTimestamp() })
+  // Obtener el menú actual para comparar slugs
+  const currentMenu = await getMenu(id)
+  if (!currentMenu) {
+    throw new Error('Menú no encontrado')
+  }
+  
+  let slugChanged = false
+  let newSlug = currentMenu.slug
+  let newNormalizedSlug = currentMenu.normalized_slug
+  
+  // Si el título está siendo actualizado y no hay slug personalizado, regenerar slug
+  if (data.title && data.title !== currentMenu.title && !data.slug) {
+    if (currentMenu.slug) {
+      // Solo regenerar si ya tenía slug
+      const slugData = await generateUniqueMenuSlug(currentMenu.restaurantId, data.title, id)
+      newSlug = slugData.slug
+      newNormalizedSlug = slugData.normalizedSlug
+      slugChanged = true
+    }
+  }
+  
+  // Si se proporciona un slug personalizado, validarlo y usarlo
+  if (data.slug !== undefined) {
+    if (data.slug === null || data.slug === '') {
+      // Eliminar slug
+      if (currentMenu.slug) {
+        newSlug = null
+        newNormalizedSlug = null
+        slugChanged = true
+      }
+    } else {
+      // Validar nuevo slug
+      const validation = validateSlug(data.slug)
+      if (!validation.isValid) {
+        throw new Error(validation.error)
+      }
+      
+      newSlug = data.slug
+      newNormalizedSlug = normalizeSlug(data.slug)
+      slugChanged = true
+      
+      // Verificar disponibilidad del slug personalizado
+      const isAvailable = await isMenuSlugAvailable(currentMenu.restaurantId, newNormalizedSlug, id)
+      if (!isAvailable) {
+        throw new Error('El slug ya está en uso por otro menú en este restaurante')
+      }
+    }
+  }
+  
+  // Actualizar el documento del menú
+  const updateData = {
+    ...data,
+    updatedAt: serverTimestamp()
+  }
+  
+  // Agregar campos de slug si cambiaron
+  if (slugChanged) {
+    updateData.slug = newSlug
+    updateData.normalized_slug = newNormalizedSlug
+  }
+  
+  await updateDoc(doc(db, 'menus', id), updateData)
+  
+  // Si el slug cambió, actualizar el registry
+  if (slugChanged) {
+    // Si había slug anterior, eliminarlo
+    if (currentMenu.normalized_slug) {
+      await deleteMenuSlugRegistry(currentMenu.restaurantId, currentMenu.normalized_slug)
+    }
+    
+    // Si hay nuevo slug, registrarlo
+    if (newSlug && newNormalizedSlug) {
+      await updateMenuSlugRegistry(currentMenu.restaurantId, id, newSlug, newNormalizedSlug)
+    }
+  }
+  
+  return { id, ...currentMenu, ...updateData }
 }
 
 // Soft delete menu
 export async function deleteMenu(id) {
-  return updateDoc(doc(db, 'menus', id), { 
+  // Obtener el menú para limpiar su slug del registry
+  const menu = await getMenu(id)
+  
+  const result = await updateDoc(doc(db, 'menus', id), { 
     deleted: true, 
     active: false, // Also deactivate when deleting
     updatedAt: serverTimestamp() 
   })
+  
+  // Limpiar el slug del registry si existe
+  if (menu && menu.normalized_slug) {
+    try {
+      await deleteMenuSlugRegistry(menu.restaurantId, menu.normalized_slug)
+    } catch (error) {
+      console.warn('Error cleaning menu slug registry:', error)
+    }
+  }
+  
+  return result
 }
 
 // Toggle menu active status
@@ -550,11 +998,15 @@ export async function reorderMenus(menus) {
 // Create restaurant + default menu
 export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = true }) {
   const restaurantName = name || 'Heladeria Pistacho'
-  const slug = generateSlug(restaurantName)
   
+  // Generar slug único para el restaurante
+  const { slug, normalizedSlug } = await generateUniqueRestaurantSlug(restaurantName)
+  
+  // Crear restaurante usando transacción para manejar slugs
   const restaurantRef = await addDoc(colRestaurants(), {
     name: restaurantName,
     slug: slug,
+    normalized_slug: normalizedSlug,
     isPublic: !!isPublic,
     owners: [uid],
     phone: '',
@@ -576,6 +1028,9 @@ export async function createRestaurantWithDefaultMenu({ uid, name, isPublic = tr
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
+  
+  // Registrar el slug en el registry usando transacción
+  await updateRestaurantSlugRegistry(restaurantRef.id, slug, normalizedSlug)
   
   // Create default main menu (always active by default)
   const menuRef = await addDoc(colMenus(), {

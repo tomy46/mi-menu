@@ -44,6 +44,13 @@ export default function MenuUnavailable({ theme, menuTitle = 'Menú', message })
           title: 'text-pink-900',
           message: 'text-pink-700'
         }
+      case 'rustico':
+        return {
+          container: 'bg-orange-50 border-orange-200 text-orange-800',
+          icon: 'text-orange-500',
+          title: 'text-orange-900',
+          message: 'text-orange-700'
+        }
       default:
         return {
           container: 'bg-amber-50 border-amber-200 text-amber-800',

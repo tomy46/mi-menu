@@ -105,6 +105,78 @@ export const MENU_THEMES = {
       card: '0 2px 8px rgba(42, 28, 12, 0.1)',
       hover: '0 4px 16px rgba(42, 28, 12, 0.15)'
     }
+  },
+
+  rustico: {
+    id: 'rustico',
+    name: 'Rústico',
+    description: 'Diseño cálido y elegante con fondo oscuro y tonos terrosos',
+    preview: '🏔️',
+    colors: {
+      primary: '#442C2E', // Marrón rojizo cálido del contenedor
+      secondary: '#634749', // Tono intermedio para separadores
+      accent: '#F3E5D8', // Tono hueso cálido
+      background: '#1a1a1a', // Fondo oscuro y neutro
+      surface: '#442C2E', // Marrón rojizo para el contenedor principal
+      text: {
+        primary: '#FFFFFF', // Blanco para títulos destacados
+        secondary: '#F3E5D8', // Tono hueso cálido para texto general
+        muted: '#D3C1B3', // Tono más suave para descripciones
+        white: '#FFFFFF' // Blanco puro
+      },
+      border: '#634749' // Separador sutil
+    },
+    fonts: {
+      primary: 'Inter', // Inter como en el diseño original
+      secondary: 'Inter', // Inter para texto
+      accent: 'Inter' // Inter para elementos decorativos
+    },
+    spacing: {
+      section: '2rem',
+      item: '1.5rem',
+      padding: '2rem'
+    },
+    borderRadius: '16px', // Bordes más redondeados como en el diseño
+    shadows: {
+      card: '0 8px 32px rgba(0, 0, 0, 0.3)', // Sombra más dramática para el fondo oscuro
+      hover: '0 12px 48px rgba(0, 0, 0, 0.4)'
+    }
+  },
+
+  modern: {
+    id: 'modern',
+    name: 'Moderno',
+    description: 'Diseño limpio y minimalista con tipografía Epilogue',
+    preview: '✨',
+    colors: {
+      primary: '#181411', // Color principal oscuro
+      secondary: '#887563', // Color secundario marrón claro
+      accent: '#f4f2f0', // Color de acento claro
+      background: '#ffffff', // Fondo blanco
+      surface: '#ffffff', // Superficie blanca
+      text: {
+        primary: '#181411', // Texto principal oscuro
+        secondary: '#887563', // Texto secundario marrón
+        muted: '#887563', // Texto atenuado
+        white: '#ffffff' // Texto blanco
+      },
+      border: '#f4f2f0' // Bordes claros
+    },
+    fonts: {
+      primary: 'Epilogue', // Epilogue para títulos
+      secondary: 'Epilogue', // Epilogue para texto
+      accent: 'Epilogue' // Epilogue para elementos decorativos
+    },
+    spacing: {
+      section: '2rem',
+      item: '1rem',
+      padding: '1.5rem'
+    },
+    borderRadius: '8px', // Bordes suaves
+    shadows: {
+      card: '0 1px 3px rgba(24, 20, 17, 0.1)', // Sombra sutil
+      hover: '0 4px 12px rgba(24, 20, 17, 0.15)' // Sombra en hover
+    }
   }
 }
 

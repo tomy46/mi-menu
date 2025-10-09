@@ -26,15 +26,21 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.owners != null
         && (request.auth.uid in request.resource.data.owners)
-        && request.resource.data.keys().hasOnly(['name','slug','isPublic','owners','phone','address','website','hours','theme','socialMedia','logo','subscriptionPlan','subscriptionStatus','subscriptionStartDate','subscriptionEndDate','createdAt','updatedAt']);
+        && request.resource.data.keys().hasOnly(['name','slug','normalized_slug','isPublic','owners','phone','address','website','hours','theme','socialMedia','logo','subscriptionPlan','subscriptionStatus','subscriptionStartDate','subscriptionEndDate','createdAt','updatedAt']);
       allow update, delete: if isOwnerOfRestaurant(restaurantId);
+      
+      // menu_slug_registry subcollection
+      match /menu_slug_registry/{menuSlug} {
+        allow read: if isOwnerOfRestaurant(restaurantId);
+        allow write: if isOwnerOfRestaurant(restaurantId);
+      }
     }
 
     // menus: require a restaurantId field
     match /menus/{menuId} {
       allow read: if isRestaurantPublic(resource.data.restaurantId) || isOwnerOfRestaurant(resource.data.restaurantId);
       allow create: if isOwnerOfRestaurant(request.resource.data.restaurantId)
-        && request.resource.data.keys().hasOnly(['restaurantId','title','type','description','active','deleted','order','isMultiLanguage','supportedLanguages','createdAt','updatedAt']);
+        && request.resource.data.keys().hasOnly(['restaurantId','title','type','description','active','deleted','order','slug','normalized_slug','isMultiLanguage','supportedLanguages','createdAt','updatedAt']);
       allow update, delete: if isOwnerOfRestaurant(resource.data.restaurantId);
     }
 
@@ -88,6 +94,14 @@ service cloud.firestore {
       
       // Solo usuarios autenticados pueden eliminar
       allow delete: if isSignedIn();
+    }
+
+    // slug_registry: registro global de slugs de restaurantes
+    match /slug_registry/{normalizedSlug} {
+      // Lectura pública para resolver slugs
+      allow read: if true;
+      // Solo propietarios pueden escribir (se maneja en transacciones)
+      allow write: if isSignedIn() && resource.data.restaurantId != null && isOwnerOfRestaurant(resource.data.restaurantId);
     }
   }
 }

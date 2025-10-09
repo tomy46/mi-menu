@@ -1,17 +1,20 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { getRestaurant, updateRestaurant } from '../../services/firestore.js'
+import { getPublicMenuUrl, getFullPublicMenuUrl } from '../../utils/slugLinks.js'
 import Snackbar from '../../components/Snackbar.jsx'
 import InfoTab from '../../components/InfoTab.jsx'
 import SocialTab from '../../components/SocialTab.jsx'
 import TeamTab from '../../components/TeamTab.jsx'
 import SubscriptionTab from '../../components/SubscriptionTab.jsx'
+import SlugTab from '../../components/SlugTab.jsx'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
 import { 
   InformationCircleIcon, 
   ShareIcon, 
   UsersIcon,
-  CreditCardIcon
+  CreditCardIcon,
+  LinkIcon
 } from '@heroicons/react/24/outline'
 
 export default function Settings() {
@@ -24,6 +27,7 @@ export default function Settings() {
   // Form states
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
     phone: '',
     address: '',
     website: '',
@@ -41,27 +45,12 @@ export default function Settings() {
   // Snackbar hook
   const { snackbar, showSuccess, showError } = useSnackbar()
   
-  const publicUrl = useMemo(() => `${window.location.origin}/r/${restaurantId}`, [restaurantId])
-  const subdomainUrl = useMemo(() => {
-    if (!restaurant?.slug) return null
-    
-    // For now, we have a specific site for heladeria-pistacho
-    if (restaurant.slug === 'heladeria-pistacho') {
-      return 'https://heladeria-pistacho.web.app'
-    }
-    
-    // For other restaurants, use the standard URL format
-    const hostname = window.location.hostname
-    const isFirebaseApp = hostname.includes('.web.app')
-    
-    if (isFirebaseApp) {
-      return `https://${restaurant.slug}.mi-menu-komin.web.app`
-    } else {
-      // For custom domains
-      const baseDomain = hostname.split('.').slice(-2).join('.')
-      return `https://${restaurant.slug}.${baseDomain}`
-    }
-  }, [restaurant])
+  const publicUrl = useMemo(() => {
+    if (!restaurant) return `${window.location.origin}/r/${restaurantId}`
+    return getFullPublicMenuUrl(restaurant)
+  }, [restaurant, restaurantId])
+  
+  const legacyUrl = useMemo(() => `${window.location.origin}/r/${restaurantId}`, [restaurantId])
 
   useEffect(() => {
     async function loadRestaurant() {
@@ -71,6 +60,7 @@ export default function Settings() {
         if (r) {
           setFormData({
             name: r.name || '',
+            slug: r.slug || '',
             phone: r.phone || '',
             address: r.address || '',
             website: r.website || '',
@@ -180,6 +170,12 @@ export default function Settings() {
       count: null
     },
     {
+      id: 'slug',
+      name: 'Enlace',
+      icon: LinkIcon,
+      count: null
+    },
+    {
       id: 'social',
       name: 'Redes Sociales',
       icon: ShareIcon,
@@ -246,8 +242,19 @@ export default function Settings() {
             saving={saving} 
             handleSave={handleSave}
             publicUrl={publicUrl}
-            subdomainUrl={subdomainUrl}
+            legacyUrl={legacyUrl}
             copy={copy}
+          />
+        )}
+        
+        {activeTab === 'slug' && (
+          <SlugTab 
+            restaurant={restaurant}
+            formData={formData} 
+            setFormData={setFormData} 
+            saving={saving} 
+            onSave={handleSave}
+            showSuccess={showSuccess}
           />
         )}
         

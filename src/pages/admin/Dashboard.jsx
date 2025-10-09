@@ -8,7 +8,7 @@ import {
   PhotoIcon,
   ShareIcon
 } from '@heroicons/react/24/outline'
-import { getRestaurant, getCategories, getItems, getActiveMenuByRestaurant, getViewStats, checkHasVisits } from '../../services/firestore.js'
+import { getRestaurant, getAllCategories, getItems, getActiveMenuByRestaurant, getViewStats, checkHasVisits } from '../../services/firestore.js'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
 import Snackbar from '../../components/Snackbar.jsx'
 
@@ -31,7 +31,7 @@ export default function Dashboard() {
       const menu = await getActiveMenuByRestaurant(restaurantId)
       if (menu) {
         const [categoriesData, itemsData, viewStatsResult] = await Promise.all([
-          getCategories(menu.id),
+          getAllCategories(menu.id),
           getItems(restaurantId),
           checkHasVisits(restaurantId, menu.id) // Verificar visitas con función más robusta
         ])

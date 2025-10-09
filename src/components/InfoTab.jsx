@@ -14,7 +14,7 @@ export default function InfoTab({
   saving, 
   handleSave, 
   publicUrl, 
-  subdomainUrl, 
+  legacyUrl, 
   copy 
 }) {
   return (
@@ -150,17 +150,17 @@ export default function InfoTab({
             </div>
           </div>
           
-          {subdomainUrl && (
+          {legacyUrl && (
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Enlace personalizado</label>
+              <label className="text-sm font-medium text-gray-700 block mb-2">Enlace alternativo</label>
               <div className="flex gap-2">
                 <input
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50"
-                  value={subdomainUrl}
+                  value={legacyUrl}
                   readOnly
                 />
                 <button
-                  onClick={() => copy(subdomainUrl)}
+                  onClick={() => copy(legacyUrl)}
                   className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm hover:bg-gray-200 transition-colors"
                 >
                   Copiar

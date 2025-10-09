@@ -18,8 +18,10 @@ import QRGeneratorNew from '../../components/QRGeneratorNew.jsx'
 
 const themes = [
   { id: 'elegant', name: 'Elegante', description: 'Diseño clásico y sofisticado' },
+  { id: 'modern', name: 'Moderno', description: 'Diseño limpio y minimalista con tipografía Epilogue' },
   { id: 'cupido', name: 'Cupido', description: 'Romántico y delicado' },
-  { id: 'colombia', name: 'Colombia', description: 'Colores cálidos inspirados en Colombia' }
+  { id: 'colombia', name: 'Colombia', description: 'Colores cálidos inspirados en Colombia' },
+  { id: 'rustico', name: 'Rústico', description: 'Diseño cálido y elegante con fondo oscuro y tonos terrosos' }
 ]
 
 

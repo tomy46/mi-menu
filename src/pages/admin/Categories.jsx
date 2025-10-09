@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { createCategory, deleteCategory, getActiveMenuByRestaurant, getCategories, updateCategory, reorderCategories, checkSubscriptionLimit, refreshRestaurantStats } from '../../services/firestore.js'
+import { createCategory, deleteCategory, getActiveMenuByRestaurant, getAllCategories, updateCategory, reorderCategories, checkSubscriptionLimit, refreshRestaurantStats } from '../../services/firestore.js'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import Snackbar from '../../components/Snackbar.jsx'
 import CategoryDialog from '../../components/CategoryDialog.jsx'
@@ -55,7 +55,7 @@ export default function Categories({ onCategoriesChange }) {
     try {
       const m = await getActiveMenuByRestaurant(restaurantId)
       if (m) setMenuId(m.id)
-      const cats = m ? await getCategories(m.id) : []
+      const cats = m ? await getAllCategories(m.id) : []
       setCategories(cats)
       // Notify parent component about categories change
       if (onCategoriesChange) {
