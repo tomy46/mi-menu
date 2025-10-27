@@ -90,12 +90,12 @@ export default function DietaryRestrictionsExample() {
 
 // Función helper para testing
 export function testDietaryRestrictions() {
-  console.log('🧪 Testing Dietary Restrictions System')
-  console.log('Available restrictions:', DIETARY_RESTRICTIONS_LIST.length)
+  // console.log('🧪 Testing Dietary Restrictions System')
+  // console.log('Available restrictions:', DIETARY_RESTRICTIONS_LIST.length)
   
-  DIETARY_RESTRICTIONS_LIST.forEach(restriction => {
-    console.log(`✅ ${restriction.name} (${restriction.id}) - ${restriction.color}`)
-  })
+  // DIETARY_RESTRICTIONS_LIST.forEach(restriction => {
+  //   console.log(`✅ ${restriction.name} (${restriction.id}) - ${restriction.color}`)
+  // })
   
-  console.log('✨ All restrictions loaded successfully!')
+  // console.log('✨ All restrictions loaded successfully!')
 }

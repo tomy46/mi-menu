@@ -6,9 +6,14 @@ import {
   ShoppingBagIcon,
   Squares2X2Icon,
   PhotoIcon,
-  ShareIcon
+  ShareIcon,
+  WrenchScrewdriverIcon
 } from '@heroicons/react/24/outline'
 import { getRestaurant, getAllCategories, getItems, getActiveMenuByRestaurant, getViewStats, checkHasVisits } from '../../services/firestore.js'
+import { migrateRestaurantsWithoutSlug } from '../../utils/migrateRestaurantSlugs.js'
+import { verifyAndFixAllSlugs, verifyRestaurantById } from '../../utils/fixSlugs.js'
+import { createSlugRegistrySimple } from '../../utils/createSlugRegistry.js'
+import { normalizeSlug } from '../../utils/slugUtils.js'
 import { useSnackbar } from '../../hooks/useSnackbar.js'
 import Snackbar from '../../components/Snackbar.jsx'
 
@@ -19,6 +24,7 @@ export default function Dashboard() {
   const [items, setItems] = useState([])
   const [hasVisits, setHasVisits] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [migrating, setMigrating] = useState(false)
   const { snackbar, showSuccess, showError, hideSnackbar } = useSnackbar()
 
   const loadData = async () => {
@@ -39,15 +45,9 @@ export default function Dashboard() {
         setItems(itemsData)
         
         // Verificar si hay visitas
-        console.log('Dashboard - CheckHasVisits result:', viewStatsResult)
-        console.log('Dashboard - Has visits:', viewStatsResult?.data?.hasVisits)
-        console.log('Dashboard - Total views:', viewStatsResult?.data?.totalViews)
-        
         if (viewStatsResult.success && (viewStatsResult.data.hasVisits || viewStatsResult.data.totalViews > 0)) {
-          console.log('Dashboard - Setting hasVisits to true')
           setHasVisits(true)
         } else {
-          console.log('Dashboard - Setting hasVisits to false')
           setHasVisits(false)
         }
       } else {
@@ -56,7 +56,7 @@ export default function Dashboard() {
         setHasVisits(false)
       }
     } catch (error) {
-      console.error('Error loading dashboard data:', error)
+      // Error loading dashboard data
     } finally {
       setLoading(false)
     }
@@ -149,6 +149,93 @@ export default function Dashboard() {
   const handleGenerateQR = () => {
     // Navegar a la página Menu y hacer scroll a la sección QR
     window.location.href = `/admin/${restaurantId}/menu#qr-section`
+  }
+
+  const handleMigrateSlugs = async () => {
+    try {
+      setMigrating(true)
+      showSuccess('Iniciando migración de slugs...')
+      
+      const result = await migrateRestaurantsWithoutSlug()
+      
+      if (result.success) {
+        if (result.migrated > 0) {
+          showSuccess(`✅ Migración exitosa: ${result.migrated} restaurante(s) migrado(s)`)
+          // Recargar datos del restaurante
+          loadData()
+        } else {
+          showSuccess('✅ Todos los restaurantes ya tienen slug configurado')
+        }
+        
+        if (result.errors && result.errors.length > 0) {
+          // Errores en migración
+          showError(`⚠️ Migrados: ${result.migrated}, Errores: ${result.errors.length}`)
+        }
+      } else {
+        showError('❌ Error en la migración: ' + result.error)
+      }
+    } catch (error) {
+      // Error ejecutando migración
+      showError('❌ Error ejecutando migración')
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  const handleVerifyAndFix = async () => {
+    try {
+      setMigrating(true)
+      showSuccess('🔍 Verificando y corrigiendo slugs...')
+      
+      const result = await verifyAndFixAllSlugs()
+      
+      if (result.restaurantsFixed > 0 || result.registryCreated > 0) {
+        showSuccess(`✅ Corregidos: ${result.restaurantsFixed} restaurantes, ${result.registryCreated} registros creados`)
+        // Recargar datos
+        loadData()
+      } else {
+        showSuccess('✅ Todo está correcto')
+      }
+      
+      if (result.errors.length > 0) {
+        showError(`⚠️ Se encontraron ${result.errors.length} errores. Ver consola.`)
+      }
+    } catch (error) {
+      showError('❌ Error: ' + error.message)
+    } finally {
+      setMigrating(false)
+    }
+  }
+
+  const handleVerifyThis = async () => {
+    try {
+      await verifyRestaurantById(restaurantId)
+      showSuccess('✅ Verificación completa. Ver consola para detalles.')
+    } catch (error) {
+      showError('❌ Error: ' + error.message)
+    }
+  }
+
+  const handleQuickFix = async () => {
+    try {
+      setMigrating(true)
+      
+      // Obtener el slug del restaurante
+      const slug = restaurant?.slug || normalizeSlug(restaurant?.name || '')
+      
+      showSuccess('🚀 Creando slug_registry...')
+      const result = await createSlugRegistrySimple(restaurantId, slug)
+      
+      if (result.success) {
+        showSuccess(`✅ ¡Listo! Prueba ${window.location.origin}/${slug}`)
+      } else {
+        showError('❌ Error: ' + result.error)
+      }
+    } catch (error) {
+      showError('❌ Error: ' + error.message)
+    } finally {
+      setMigrating(false)
+    }
   }
 
   if (loading) {
@@ -257,6 +344,7 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
 
       {/* Snackbar */}
       <Snackbar

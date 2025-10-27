@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams, useLocation, useNavigate } from 'react-router-dom'
-import { getRestaurantBySlug, getMenuBySlug } from '../services/firestore'
+import { getRestaurantBySlug, getMenuBySlug, getRestaurant } from '../services/firestore'
 import { normalizeSlug, canonicalizeSlug } from '../utils/slugUtils'
 
 /**
- * Componente que maneja el enrutamiento basado en slugs
+ * Componente que maneja el enrutamiento basado en slugs o IDs
  * Resuelve slugs a IDs y redirige a URLs canónicas si es necesario
+ * Soporta tanto /r/:restaurantId como /:restaurantSlug
  */
 function SlugRouter({ children }) {
-  const { restaurantSlug, menuSlug } = useParams()
+  const params = useParams()
+  // Puede venir como 'restaurantId' (ruta /r/:restaurantId) o 'restaurantSlug' (ruta /:restaurantSlug)
+  const identifier = params.restaurantId || params.restaurantSlug
+  const menuSlug = params.menuSlug
   const location = useLocation()
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
@@ -22,31 +26,46 @@ function SlugRouter({ children }) {
         setLoading(true)
         setError(null)
 
-        if (!restaurantSlug) {
-          setError('Slug de restaurante requerido')
+        if (!identifier) {
+          setError('Identificador de restaurante requerido')
           return
         }
 
-        // Normalizar el slug de entrada
-        const normalizedRestaurantSlug = normalizeSlug(restaurantSlug)
+        // Detectar si es un ID de Firebase (formato alfanumérico de 20 caracteres aprox)
+        // o un slug (formato slug con guiones)
+        const isFirebaseId = /^[a-zA-Z0-9]{15,}$/.test(identifier)
         
-        // Verificar si necesita redirección canónica
-        if (restaurantSlug !== normalizedRestaurantSlug) {
-          const canonicalPath = menuSlug 
-            ? `/${normalizedRestaurantSlug}/${normalizeSlug(menuSlug)}`
-            : `/${normalizedRestaurantSlug}`
+        let restaurantData
+        
+        if (isFirebaseId) {
+          // Es un ID de Firebase, cargar directamente
+          restaurantData = await getRestaurant(identifier)
+          if (!restaurantData || !restaurantData.isPublic) {
+            setError('Restaurante no encontrado')
+            return
+          }
+        } else {
+          // Es un slug, normalizar y resolver
+          const normalizedIdentifier = normalizeSlug(identifier)
           
-          // Preservar query parameters
-          const search = location.search
-          navigate(canonicalPath + search, { replace: true })
-          return
-        }
+          // Verificar si necesita redirección canónica (solo para rutas de slug)
+          if (!params.restaurantId && identifier !== normalizedIdentifier) {
+            const canonicalPath = menuSlug 
+              ? `/${normalizedIdentifier}/${normalizeSlug(menuSlug)}`
+              : `/${normalizedIdentifier}`
+            
+            // Preservar query parameters
+            const search = location.search
+            navigate(canonicalPath + search, { replace: true })
+            return
+          }
 
-        // Resolver restaurante por slug
-        const restaurantData = await getRestaurantBySlug(restaurantSlug)
-        if (!restaurantData) {
-          setError('Restaurante no encontrado')
-          return
+          // Resolver restaurante por slug
+          restaurantData = await getRestaurantBySlug(identifier)
+          if (!restaurantData) {
+            setError('Restaurante no encontrado')
+            return
+          }
         }
 
         setRestaurant(restaurantData)
@@ -57,7 +76,7 @@ function SlugRouter({ children }) {
           
           // Verificar redirección canónica del menú
           if (menuSlug !== normalizedMenuSlug) {
-            const canonicalPath = `/${restaurantSlug}/${normalizedMenuSlug}`
+            const canonicalPath = `/${identifier}/${normalizedMenuSlug}`
             const search = location.search
             navigate(canonicalPath + search, { replace: true })
             return
@@ -81,7 +100,7 @@ function SlugRouter({ children }) {
     }
 
     resolveSlug()
-  }, [restaurantSlug, menuSlug, location.search, navigate])
+  }, [identifier, menuSlug, location.search, navigate, params.restaurantId])
 
   if (loading) {
     return (

@@ -33,8 +33,6 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
   const analyticsEnabled = true // Temporalmente habilitado para todos los planes durante desarrollo
   // const analyticsEnabled = subscriptionPlan === 'pro' || subscriptionPlan === 'enterprise'
   
-  console.log('AnalyticsDashboard - subscriptionPlan:', subscriptionPlan, 'analyticsEnabled:', analyticsEnabled)
-  
   useEffect(() => {
     if (!analyticsEnabled) {
       setLoading(false)
@@ -48,42 +46,32 @@ export default function AnalyticsDashboard({ restaurantId, subscriptionPlan = 's
     try {
       setLoading(true)
       
-      console.log('Loading analytics for restaurant:', restaurantId, 'period:', selectedPeriod)
-      
       // Load restaurant stats (cached, optimized for frequent reads)
       const statsResult = await getRestaurantStats(restaurantId)
       if (statsResult.success) {
         setStats(statsResult.data)
-        console.log('Restaurant stats loaded:', statsResult.data)
       }
       
       // Load view stats for selected period
       const viewsResult = await getViewStats(restaurantId, null, selectedPeriod)
       if (viewsResult.success) {
         setViewStats(viewsResult.data)
-        console.log('View stats loaded:', viewsResult.data)
       }
       
       // Load unique visit stats
       const uniqueVisitsResult = await getUniqueVisitStats(restaurantId, null, selectedPeriod)
       if (uniqueVisitsResult.success) {
         setUniqueVisitStats(uniqueVisitsResult.data)
-        console.log('Unique visit stats loaded:', uniqueVisitsResult.data)
-      } else {
-        console.log('Unique visit stats failed:', uniqueVisitsResult.error)
       }
       
       // Load table stats
       const tableStatsResult = await getTableStats(restaurantId, selectedPeriod)
       if (tableStatsResult.success) {
         setTableStats(tableStatsResult.data)
-        console.log('Table stats loaded:', tableStatsResult.data)
-      } else {
-        console.log('Table stats failed:', tableStatsResult.error)
       }
       
     } catch (error) {
-      console.error('Error loading analytics:', error)
+      // Error loading analytics
     } finally {
       setLoading(false)
     }

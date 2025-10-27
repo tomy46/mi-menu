@@ -487,7 +487,7 @@ export async function createCategory({ menuId, name, order, description, tag, ac
       await refreshRestaurantStats(menu.restaurantId)
     }
   } catch (error) {
-    console.warn('Error updating stats after category creation:', error)
+    // Error updating stats
   }
   
   return result
@@ -532,7 +532,7 @@ export async function createCategoryMultiLang({
       await refreshRestaurantStats(menu.restaurantId)
     }
   } catch (error) {
-    console.warn('Error updating stats after category creation:', error)
+    // Error updating stats
   }
   
   return result
@@ -551,7 +551,7 @@ export async function updateCategory(id, data) {
       }
     }
   } catch (error) {
-    console.warn('Error updating stats after category update:', error)
+    // Error updating stats
   }
   
   return result
@@ -567,7 +567,7 @@ export async function deleteCategory(id) {
       restaurantId = menu?.restaurantId
     }
   } catch (error) {
-    console.warn('Error getting category info before deletion:', error)
+    // Error getting category info
   }
   
   const result = await deleteDoc(doc(db, 'categories', id))
@@ -577,7 +577,7 @@ export async function deleteCategory(id) {
     try {
       await refreshRestaurantStats(restaurantId)
     } catch (error) {
-      console.warn('Error updating stats after category deletion:', error)
+      // Error updating stats
     }
   }
   
@@ -626,7 +626,7 @@ export async function createItem({ categoryId, name, description, price, currenc
       }
     }
   } catch (error) {
-    console.warn('Error updating stats after item creation:', error)
+    // Error updating stats
   }
   
   return result
@@ -675,7 +675,7 @@ export async function createItemMultiLang({
       }
     }
   } catch (error) {
-    console.warn('Error updating stats after item creation:', error)
+    // Error updating stats
   }
   
   return result
@@ -697,7 +697,7 @@ export async function updateItem(id, data) {
       }
     }
   } catch (error) {
-    console.warn('Error updating stats after item update:', error)
+    // Error updating stats
   }
   
   return result
@@ -716,7 +716,7 @@ export async function deleteItem(id) {
       }
     }
   } catch (error) {
-    console.warn('Error getting item info before deletion:', error)
+    // Error getting item info
   }
   
   const result = await deleteDoc(doc(db, 'items', id))
@@ -726,7 +726,7 @@ export async function deleteItem(id) {
     try {
       await refreshRestaurantStats(restaurantId)
     } catch (error) {
-      console.warn('Error updating stats after item deletion:', error)
+      // Error updating stats
     }
   }
   
@@ -970,7 +970,7 @@ export async function deleteMenu(id) {
     try {
       await deleteMenuSlugRegistry(menu.restaurantId, menu.normalized_slug)
     } catch (error) {
-      console.warn('Error cleaning menu slug registry:', error)
+      // Error cleaning menu slug registry
     }
   }
   
@@ -1242,7 +1242,7 @@ export async function getRestaurantStats(restaurantId) {
       await setDoc(statsDoc, defaultStats)
       return { success: true, data: defaultStats }
     } catch (createError) {
-      console.warn('Could not create default stats, calculating instead:', createError)
+      // Could not create default stats, calculating instead
       // Fallback: intentar calcular estadísticas
       const stats = await calculateRestaurantStats(restaurantId)
       return { success: true, data: stats }
@@ -1469,8 +1469,6 @@ async function updateMenuViewStats(restaurantId, menuId) {
  */
 export async function checkHasVisits(restaurantId, menuId) {
   try {
-    console.log('checkHasVisits called with:', { restaurantId, menuId })
-    
     // Primero verificar en analyticsVisitStats
     const visitStatsQuery = query(
       colAnalyticsVisitStats(),
@@ -1481,11 +1479,9 @@ export async function checkHasVisits(restaurantId, menuId) {
     )
     
     const visitStatsSnap = await getDocs(visitStatsQuery)
-    console.log('Found visit stats documents:', visitStatsSnap.size)
     
     if (!visitStatsSnap.empty) {
       const totalViews = visitStatsSnap.docs.reduce((sum, doc) => sum + (doc.data().views || 0), 0)
-      console.log('Total views from visit stats:', totalViews)
       
       if (totalViews > 0) {
         return {
@@ -1505,7 +1501,6 @@ export async function checkHasVisits(restaurantId, menuId) {
     )
     
     const eventsSnap = await getDocs(eventsQuery)
-    console.log('Found analytics events:', eventsSnap.size)
     
     const hasVisits = !eventsSnap.empty
     
@@ -1528,16 +1523,12 @@ export async function checkHasVisits(restaurantId, menuId) {
  */
 export async function getViewStats(restaurantId, menuId = null, days = 30) {
   try {
-    console.log('getViewStats called with:', { restaurantId, menuId, days })
-    
     const endDate = new Date()
     const startDate = new Date()
     startDate.setDate(endDate.getDate() - days)
     
     const startDateStr = startDate.toISOString().split('T')[0]
     const endDateStr = endDate.toISOString().split('T')[0]
-    
-    console.log('Date range:', { startDateStr, endDateStr })
     
     let q
     if (menuId) {
@@ -1566,14 +1557,9 @@ export async function getViewStats(restaurantId, menuId = null, days = 30) {
     const snap = await getDocs(q)
     const viewStats = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
     
-    console.log('Found view stats documents:', viewStats.length)
-    console.log('View stats data:', viewStats)
-    
     // Calcular totales
     const totalViews = viewStats.reduce((sum, stat) => sum + (stat.views || 0), 0)
     const avgViewsPerDay = viewStats.length > 0 ? totalViews / viewStats.length : 0
-    
-    console.log('Calculated totalViews:', totalViews)
     
     return {
       success: true,

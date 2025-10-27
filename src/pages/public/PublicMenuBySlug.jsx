@@ -5,6 +5,9 @@ import PublicMenuNew from './PublicMenuNew'
 /**
  * Componente que maneja el menú público accedido por slug
  * Resuelve el slug a ID y renderiza el componente PublicMenuNew
+ * Soporta dos formatos de URL:
+ * - /:restaurantSlug (solo restaurante)
+ * - /:restaurantSlug/:menuSlug (restaurante + menú específico)
  */
 function PublicMenuBySlug() {
   return (
